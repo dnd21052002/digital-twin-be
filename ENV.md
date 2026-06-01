@@ -34,6 +34,10 @@ JWT_SECRET=change-me-local-secret
 JWT_ACCESS_TTL_SECONDS=900
 JWT_REFRESH_TTL_SECONDS=2592000
 API_KEY_PEPPER=change-me-local-api-key-pepper
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=Admin@123456
+ADMIN_DISPLAY_NAME=Admin
 CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 LOG_LEVEL=debug
 ```

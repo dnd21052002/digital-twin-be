@@ -8,6 +8,14 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
+  JWT_SECRET: z.string().min(16).default('change-me-local-secret'),
+  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(2592000),
+  API_KEY_PEPPER: z.string().min(8).default('change-me-local-api-key-pepper'),
+  ADMIN_USERNAME: z.string().min(1).default('admin'),
+  ADMIN_EMAIL: z.string().email().default('admin@example.com'),
+  ADMIN_PASSWORD: z.string().min(8).default('Admin@123456'),
+  ADMIN_DISPLAY_NAME: z.string().min(1).default('Admin'),
 });
 
 export type Env = z.infer<typeof envSchema>;

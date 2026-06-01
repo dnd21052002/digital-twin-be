@@ -19,14 +19,14 @@
 
 ## Phase 1 — Auth & RBAC
 
-- [ ] Implement `POST /api/v1/auth/login`.
-- [ ] Implement `POST /api/v1/auth/logout`.
-- [ ] Implement `POST /api/v1/auth/refresh`.
-- [ ] Implement `GET /api/v1/me`.
-- [ ] Implement RBAC middleware using `iam.role`, `iam.permission`.
-- [ ] Implement API key auth for integration endpoints.
+- [x] Implement `POST /api/v1/auth/login`.
+- [x] Implement `POST /api/v1/auth/logout`.
+- [x] Implement `POST /api/v1/auth/refresh`.
+- [x] Implement `GET /api/v1/me`.
+- [x] Implement RBAC middleware using `iam.role`, `iam.permission`.
+- [x] Implement API key auth for integration endpoints.
 - [ ] Write audit entries for login/logout/permission changes.
-- [ ] Add seed/admin user creation process.
+- [x] Add seed/admin user creation process.
 
 ## Phase 2 — Facility, Asset, Geometry
 
