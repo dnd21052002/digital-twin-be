@@ -1,5 +1,5 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiForbiddenResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiForbiddenResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiProperty, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 import { ApiErrorResponseDto } from '../../common/swagger/api-response.dto';
 import { AuthGuard } from '../iam/auth.guard';
@@ -9,6 +9,7 @@ import { SceneManifestDto, ScenesResponseDto } from './dto/scenes-response.dto';
 import { ScenesService } from './scenes.service';
 
 class SceneIdParamDto {
+  @ApiProperty({ format: 'uuid' })
   @IsUUID()
   sceneId!: string;
 }

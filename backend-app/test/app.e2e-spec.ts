@@ -6,6 +6,7 @@ process.env.API_KEY_PEPPER ??= 'test-pepper';
 
 import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { sql } from 'kysely';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -322,6 +323,23 @@ describe('App e2e', () => {
       .expect(({ body }) => {
         expect(Array.isArray(body.items)).toBe(true);
       });
+  });
+
+  it('documents sceneId path parameter for scene manifest', () => {
+    const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+
+    const operation = document.paths['/api/v1/scenes/{sceneId}/manifest']?.get;
+    expect(operation).toBeDefined();
+    expect(operation!.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'sceneId',
+          in: 'path',
+          required: true,
+          schema: expect.objectContaining({ format: 'uuid' }),
+        }),
+      ]),
+    );
   });
 
   it('GET /api/v1/scenes/:sceneId/manifest returns 404 for missing scene', async () => {
