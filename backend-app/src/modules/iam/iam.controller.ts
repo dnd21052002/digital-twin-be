@@ -26,7 +26,7 @@ export class IamController {
   refresh(@Body() dto: RefreshDto) { return this.iam.refresh(dto.refreshToken); }
 
   @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('bearer')
   @Post('auth/logout')
   @ApiOperation({ summary: 'Revoke the current bearer session.' })
   @ApiOkResponse({ type: OkResponseDto })
@@ -34,7 +34,7 @@ export class IamController {
   logout(@Req() req: Request) { return this.iam.logout(req.user!.sessionId); }
 
   @UseGuards(AuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('bearer')
   @Get('me')
   @ApiOperation({ summary: 'Get the current authenticated user.' })
   @ApiOkResponse({ type: PublicUserDto })

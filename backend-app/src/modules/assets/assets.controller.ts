@@ -6,10 +6,11 @@ import { RequirePermissions } from '../iam/rbac.decorator';
 import { RbacGuard } from '../iam/rbac.guard';
 import { AssetsService } from './assets.service';
 import { AssetDetailDto, AssetListResponseDto } from './dto/assets-response.dto';
-import { AssetIdParamDto, AssetsQueryDto } from './dto/assets-query.dto';
+import { AssetIdParamDto } from './dto/assets-query.dto';
 
 @ApiTags('assets')
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
+
 @UseGuards(AuthGuard, RbacGuard)
 @RequirePermissions('asset:read')
 @Controller('assets')

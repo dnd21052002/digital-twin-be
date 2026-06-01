@@ -9,7 +9,7 @@ import { AlarmIdParamDto, AlarmsQueryDto } from './dto/alarms-query.dto';
 import { AlarmDetailDto, AlarmListResponseDto } from './dto/alarms-response.dto';
 
 @ApiTags('alarms')
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
 @UseGuards(AuthGuard, RbacGuard)
 @RequirePermissions('alarm:read')
 @Controller('alarms')
@@ -22,9 +22,7 @@ export class AlarmsController {
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
-  listAlarms(@Query() query: AlarmsQueryDto) {
-    return this.alarms.listAlarms(query);
-  }
+  listAlarms(@Query() query: AlarmsQueryDto) { return this.alarms.listAlarms(query); }
 
   @Get(':alarmId')
   @ApiOperation({ summary: 'Get alarm detail with asset, rule, SOP/camera hints, and timeline.' })
@@ -32,7 +30,5 @@ export class AlarmsController {
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiNotFoundResponse({ type: ApiErrorResponseDto })
-  getAlarm(@Param() params: AlarmIdParamDto) {
-    return this.alarms.getAlarm(params.alarmId);
-  }
+  getAlarm(@Param() params: AlarmIdParamDto) { return this.alarms.getAlarm(params.alarmId); }
 }

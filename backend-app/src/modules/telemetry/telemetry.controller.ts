@@ -9,7 +9,7 @@ import { LatestMetricsResponseDto, MetricTimeseriesResponseDto } from './dto/met
 import { TelemetryService } from './telemetry.service';
 
 @ApiTags('telemetry')
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
 @UseGuards(AuthGuard, RbacGuard)
 @RequirePermissions('asset:read')
 @Controller('assets/:assetId/metrics')
@@ -22,9 +22,7 @@ export class TelemetryController {
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiNotFoundResponse({ type: ApiErrorResponseDto })
-  latestMetrics(@Param() params: AssetIdParamDto) {
-    return this.telemetry.latestMetrics(params.assetId);
-  }
+  latestMetrics(@Param() params: AssetIdParamDto) { return this.telemetry.latestMetrics(params.assetId); }
 
   @Get('timeseries')
   @ApiOperation({ summary: 'Return asset metric chart points for a time range.' })
@@ -33,7 +31,5 @@ export class TelemetryController {
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
   @ApiNotFoundResponse({ type: ApiErrorResponseDto })
-  metricTimeseries(@Param() params: AssetIdParamDto, @Query() query: AssetMetricsQueryDto) {
-    return this.telemetry.metricTimeseries(params.assetId, query);
-  }
+  metricTimeseries(@Param() params: AssetIdParamDto, @Query() query: AssetMetricsQueryDto) { return this.telemetry.metricTimeseries(params.assetId, query); }
 }
