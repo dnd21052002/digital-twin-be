@@ -30,13 +30,22 @@
 
 ## Phase 2 — Facility, Asset, Geometry
 
-- [ ] Implement `GET /api/v1/facility/tree`.
+### Sprint 1 Scope — Core Read APIs
+
+These are the Phase 2 APIs required by the Suggested First Sprint deliverable.
+
+- [x] Implement `GET /api/v1/facility/tree`.
+- [x] Implement `GET /api/v1/assets` with search/filter/pagination.
+- [x] Implement `GET /api/v1/assets/{assetId}`.
+- [x] Implement `GET /api/v1/scenes`.
+- [x] Implement `GET /api/v1/scenes/{sceneId}/manifest`.
+
+### Phase 2 Backlog — Post-Sprint 1
+
+These APIs complete the broader Phase 2 scope but are not required for the first sprint deliverable.
+
 - [ ] Implement `GET /api/v1/facility/rack-positions`.
-- [ ] Implement `GET /api/v1/assets` with search/filter/pagination.
-- [ ] Implement `GET /api/v1/assets/{assetId}`.
 - [ ] Implement `GET /api/v1/racks/{rackId}`.
-- [ ] Implement `GET /api/v1/scenes`.
-- [ ] Implement `GET /api/v1/scenes/{sceneId}/manifest`.
 - [ ] Implement `GET /api/v1/scenes/{sceneId}/assets` with bounding-box filter.
 - [ ] Implement `GET /api/v1/viewpoints`.
 - [ ] Implement `POST /api/v1/view-presets`.
@@ -119,10 +128,10 @@
 
 ## Suggested First Sprint
 
-1. Foundation: DB connection, health, error format, logging.
-2. Auth/RBAC: login, me, middleware.
-3. Read-only core APIs: facility tree, assets list/detail, scene manifest.
-4. Telemetry latest/timeseries read APIs.
-5. Alarm list/detail read APIs.
+1. [x] Foundation: DB connection, health, error format, logging.
+2. [x] Auth/RBAC: login, me, middleware.
+3. [x] Read-only core APIs: facility tree, assets list/detail, scene manifest.
+4. [ ] Telemetry latest/timeseries read APIs.
+5. [ ] Alarm list/detail read APIs.
 
 Deliverable: frontend can login, load 3D scene context, click asset, see metrics and alarms.

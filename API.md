@@ -79,7 +79,7 @@ DB: `iam.user`, `iam.permission`.
 
 ### `GET /api/v1/facility/tree`
 
-Return physical hierarchy.
+Return physical hierarchy. Requires `asset:read`.
 
 Response:
 
@@ -87,9 +87,43 @@ Response:
 {
   "sites": [
     {
-      "id": "uuid",
+      "id": "1",
+      "code": "PCN",
       "name": "Twin P.CN",
-      "buildings": []
+      "timezone": "Asia/Ho_Chi_Minh",
+      "buildings": [
+        {
+          "id": "1",
+          "code": "B1",
+          "name": "Building 1",
+          "floorCount": 3,
+          "floors": [
+            {
+              "id": "1",
+              "code": "F1",
+              "name": "Floor 1",
+              "level": 1,
+              "halls": [
+                {
+                  "id": "1",
+                  "code": "H1",
+                  "name": "Hall 1",
+                  "areaM2": 1000,
+                  "zones": [],
+                  "rows": [
+                    {
+                      "id": "1",
+                      "code": "A",
+                      "orientationDeg": 90,
+                      "rackPositions": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
@@ -111,7 +145,7 @@ siteId=uuid&floorId=uuid&zoneId=uuid&limit=100&cursor=...
 
 ### `GET /api/v1/assets`
 
-List/search assets.
+List/search assets. Requires `asset:read`.
 
 Query:
 
@@ -144,11 +178,50 @@ DB: `asset.asset`, `asset.asset_category`, `facility.*`.
 
 ### `GET /api/v1/assets/{assetId}`
 
-Get full asset detail.
+Get full asset detail. Requires `asset:read`.
 
-Includes category, model, facility path, geometry, current alarms, latest metrics.
+Response:
 
-DB: `asset.*`, `facility.*`, `geom3d.mesh_asset`, `telemetry.metric_sample`, `alarm.alarm`.
+```json
+{
+  "id": "uuid",
+  "assetTag": "RACK-A01",
+  "name": "Rack A01",
+  "category": { "code": "rack", "name": "Rack" },
+  "model": {
+    "id": "1",
+    "manufacturer": "Vendor",
+    "modelCode": "R42",
+    "displayName": "Rack 42U",
+    "defaultPowerKw": 8.5,
+    "defaultCoolingKw": 9.0,
+    "rackUnits": 42,
+    "weightKg": 120,
+    "meshId": null,
+    "spec": {}
+  },
+  "serialNo": "SN-001",
+  "status": "online",
+  "location": {
+    "site": { "id": "1", "name": "Twin P.CN" },
+    "building": { "id": "1", "name": "Building 1" },
+    "floor": { "id": "1", "name": "Floor 1" },
+    "hall": { "id": "1", "name": "Hall 1" },
+    "zone": { "id": "1", "name": "Zone 1" },
+    "row": { "id": "1", "name": "A" },
+    "rackPosition": { "id": "1", "name": "A01" }
+  },
+  "geometry": {
+    "rotationDeg": 0,
+    "coordinates": null
+  },
+  "attributes": {}
+}
+```
+
+Missing asset returns `404 not_found`.
+
+DB: `asset.*`, `facility.*`.
 
 ### `GET /api/v1/racks/{rackId}`
 
@@ -160,15 +233,55 @@ DB: `asset.rack`, `asset.rack_unit`, `capacity.capacity_snapshot`.
 
 ### `GET /api/v1/scenes`
 
-List available 3D scenes.
+List available 3D scenes. Requires `asset:read`.
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "siteId": "1",
+      "name": "Main Scene",
+      "isDefault": true,
+      "lodStrategy": "auto",
+      "createdAt": "2026-06-01T00:00:00.000Z",
+      "updatedAt": "2026-06-01T00:00:00.000Z"
+    }
+  ]
+}
+```
 
 DB: `geom3d.scene`.
 
 ### `GET /api/v1/scenes/{sceneId}/manifest`
 
-Return scene manifest with mesh/texture metadata and LOD.
+Return scene manifest. Requires `asset:read`. Mesh/texture arrays are empty until a scene-to-asset mapping table exists.
 
-DB: `geom3d.scene`, `geom3d.mesh_asset`, `geom3d.texture_asset`, `geom3d.mesh_lod_chain`.
+Response:
+
+```json
+{
+  "scene": {
+    "id": "uuid",
+    "siteId": "1",
+    "name": "Main Scene",
+    "isDefault": true,
+    "lodStrategy": "auto",
+    "createdAt": "2026-06-01T00:00:00.000Z",
+    "updatedAt": "2026-06-01T00:00:00.000Z",
+    "environment": {},
+    "defaultCameraId": null
+  },
+  "meshes": [],
+  "textures": []
+}
+```
+
+Missing scene returns `404 not_found`.
+
+DB: `geom3d.scene`, `geom3d.mesh_asset`, `geom3d.texture_asset`.
 
 ### `GET /api/v1/scenes/{sceneId}/assets`
 
