@@ -30,13 +30,13 @@
 
 ## Phase 2 — Facility, Asset, Geometry
 
-- [ ] Implement `GET /api/v1/facility/tree`.
+- [x] Implement `GET /api/v1/facility/tree`.
 - [ ] Implement `GET /api/v1/facility/rack-positions`.
-- [ ] Implement `GET /api/v1/assets` with search/filter/pagination.
-- [ ] Implement `GET /api/v1/assets/{assetId}`.
+- [x] Implement `GET /api/v1/assets` with search/filter/pagination.
+- [x] Implement `GET /api/v1/assets/{assetId}`.
 - [ ] Implement `GET /api/v1/racks/{rackId}`.
-- [ ] Implement `GET /api/v1/scenes`.
-- [ ] Implement `GET /api/v1/scenes/{sceneId}/manifest`.
+- [x] Implement `GET /api/v1/scenes`.
+- [x] Implement `GET /api/v1/scenes/{sceneId}/manifest`.
 - [ ] Implement `GET /api/v1/scenes/{sceneId}/assets` with bounding-box filter.
 - [ ] Implement `GET /api/v1/viewpoints`.
 - [ ] Implement `POST /api/v1/view-presets`.
