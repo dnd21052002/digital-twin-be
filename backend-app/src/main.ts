@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
@@ -12,7 +12,14 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
   app.enableCors({ origin: getCorsOrigins(env), credentials: true });
   app.setGlobalPrefix('api/v1');
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    exceptionFactory: (errors) => new BadRequestException({
+      code: 'validation_failed',
+      message: errors.flatMap((error) => Object.values(error.constraints ?? {})),
+    }),
+  }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
   const documentConfig = new DocumentBuilder().setTitle('Twin@P.CN Backend API').setDescription('Digital twin backend API').setVersion('0.1.0').build();

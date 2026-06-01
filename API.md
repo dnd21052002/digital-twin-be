@@ -35,8 +35,12 @@ Response:
   "expiresIn": 900,
   "user": {
     "id": "uuid",
+    "username": "admin",
+    "email": "admin@example.com",
     "displayName": "Admin",
-    "roles": ["admin"]
+    "avatarInitials": "AD",
+    "roles": ["ADMIN"],
+    "permissions": ["user:manage"]
   }
 }
 ```
@@ -45,15 +49,29 @@ DB: `iam.user`, `iam.session`, `iam.role`, `iam.user_role`.
 
 ### `POST /api/v1/auth/logout`
 
-Invalidate session.
+Invalidate current session. Requires `Authorization: Bearer <accessToken>`.
+
+Response:
+
+```json
+{ "ok": true }
+```
 
 ### `POST /api/v1/auth/refresh`
 
-Refresh access token.
+Refresh access and rotate refresh token.
+
+Request:
+
+```json
+{ "refreshToken": "opaque-token" }
+```
+
+Response shape matches login.
 
 ### `GET /api/v1/me`
 
-Return current user, roles, permissions.
+Return current user, roles, permissions. Requires bearer JWT.
 
 DB: `iam.user`, `iam.permission`.
 

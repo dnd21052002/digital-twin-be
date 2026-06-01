@@ -9,10 +9,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : undefined;
-    const extracted = this.extractMessageAndDetails(exception, exceptionResponse);
+    const extracted = this.extractError(exception, exceptionResponse, status);
     const body: ApiErrorResponse = {
       error: {
-        code: this.codeFromStatus(status),
+        code: extracted.code,
         message: extracted.message,
         ...(extracted.details === undefined ? {} : { details: extracted.details }),
       },
@@ -20,24 +20,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(status).json(body);
   }
 
-  private extractMessageAndDetails(exception: unknown, exceptionResponse: unknown): { message: string; details?: unknown } {
-    if (typeof exceptionResponse === 'object' && exceptionResponse !== null && 'message' in exceptionResponse) {
-      const responseMessage = (exceptionResponse as { message: unknown }).message;
-      if (Array.isArray(responseMessage)) {
-        return { message: 'Validation failed', details: responseMessage };
+  private extractError(exception: unknown, exceptionResponse: unknown, status: number): { code: string; message: string; details?: unknown } {
+    if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+      const responseObject = exceptionResponse as { code?: unknown; message?: unknown; error?: unknown };
+      const explicitCode = typeof responseObject.code === 'string' ? responseObject.code : undefined;
+
+      if (Array.isArray(responseObject.message)) {
+        return { code: explicitCode ?? 'validation_failed', message: 'Validation failed', details: responseObject.message };
       }
-      return { message: String(responseMessage) };
+
+      if (responseObject.message !== undefined) {
+        return { code: explicitCode ?? this.codeFromStatus(status), message: String(responseObject.message) };
+      }
     }
 
     if (typeof exceptionResponse === 'string') {
-      return { message: exceptionResponse };
+      return { code: this.codeFromStatus(status), message: exceptionResponse };
     }
 
     if (exception instanceof Error) {
-      return { message: exception.message };
+      return { code: this.codeFromStatus(status), message: exception.message };
     }
 
-    return { message: 'Internal server error' };
+    return { code: this.codeFromStatus(status), message: 'Internal server error' };
   }
 
   private codeFromStatus(status: number): string {
