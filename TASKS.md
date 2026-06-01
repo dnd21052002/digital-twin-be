@@ -11,7 +11,6 @@
 - [x] Choose backend stack and framework.
 - [x] Create backend source repository/folder structure.
 - [x] Add database connection config for PostgreSQL/Timescale/PostGIS.
-- [ ] Add migration/bootstrap strategy around existing `run_all.sql`.
 - [x] Add health endpoint: `GET /health`.
 - [x] Add structured logging with request IDs.
 - [x] Add global error handler using `API.md` error format.
