@@ -22,9 +22,14 @@ async function bootstrap() {
   }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
-  const documentConfig = new DocumentBuilder().setTitle('Twin@P.CN Backend API').setDescription('Digital twin backend API').setVersion('0.1.0').build();
+  const documentConfig = new DocumentBuilder()
+    .setTitle('Twin@P.CN Backend API')
+    .setDescription('Digital twin backend API')
+    .setVersion('0.1.0')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Paste accessToken from POST /api/v1/auth/login.' }, 'bearer')
+    .build();
   const document = SwaggerModule.createDocument(app, documentConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, { swaggerOptions: { persistAuthorization: true } });
   await app.listen(env.APP_PORT, env.APP_HOST);
 }
 void bootstrap();

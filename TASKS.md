@@ -6,6 +6,60 @@
 - `[~]` In progress.
 - `[x]` Done.
 
+## Sprint 1 — Complete
+
+Deliverable: frontend can login, load 3D scene context, click asset, see metrics and alarms.
+
+### Sprint 1 Done
+
+- [x] Foundation: DB connection, health, error format, logging.
+- [x] Auth/RBAC: login, me, middleware.
+- [x] Implement `POST /api/v1/auth/login`.
+- [x] Implement `POST /api/v1/auth/logout`.
+- [x] Implement `POST /api/v1/auth/refresh`.
+- [x] Implement `GET /api/v1/me`.
+- [x] Implement RBAC middleware using `iam.role`, `iam.permission`.
+- [x] Implement `GET /api/v1/facility/tree`.
+- [x] Implement `GET /api/v1/assets` with search/filter/pagination.
+- [x] Implement `GET /api/v1/assets/{assetId}`.
+- [x] Implement `GET /api/v1/scenes`.
+- [x] Implement `GET /api/v1/scenes/{sceneId}/manifest`.
+- [x] Implement `GET /api/v1/assets/{assetId}/metrics/latest`.
+- [x] Implement `GET /api/v1/assets/{assetId}/metrics/timeseries`.
+- [x] Implement `GET /api/v1/alarms`.
+- [x] Implement `GET /api/v1/alarms/{alarmId}`.
+
+### Sprint 1 Non-blocking / Carry-over
+
+- [ ] Write audit entries for login/logout/permission changes.
+
+## Sprint 2 — Suggested Implementation Plan
+
+Goal: complete the remaining read/navigation surfaces around scene context, racks, layers, and incident helper details so the frontend can navigate deeper after Sprint 1.
+
+### Sprint 2 Priority Tasks
+
+- [ ] Implement `GET /api/v1/facility/rack-positions`.
+- [ ] Implement `GET /api/v1/racks/{rackId}` with rack units, contained assets, capacity summary, and active alarm summary.
+- [ ] Implement `GET /api/v1/scenes/{sceneId}/assets` with bounding-box filter for visible asset loading.
+- [ ] Implement `GET /api/v1/viewpoints` for predefined navigation targets.
+- [ ] Implement `POST /api/v1/view-presets` for user-saved camera/view presets.
+- [ ] Implement `GET /api/v1/layers/types`.
+- [ ] Implement `GET /api/v1/layers/instances`.
+- [ ] Implement `GET /api/v1/layers/thermal`.
+- [ ] Implement `GET /api/v1/layers/airflow`.
+- [ ] Implement `GET /api/v1/layers/power-paths`.
+- [ ] Implement `PUT /api/v1/users/me/layer-state`.
+- [ ] Implement `GET /api/v1/alarms/{alarmId}/nearest-cameras`.
+- [ ] Implement `GET /api/v1/alarms/{alarmId}/sop`.
+
+### Sprint 2 Quality/Hardening Tasks
+
+- [ ] Add unit tests for Sprint 1 telemetry and alarm service mapping/filter validation.
+- [ ] Add E2E smoke tests for Sprint 1 metric and alarm read endpoints.
+- [ ] Add permission tests for asset, telemetry, layer, and alarm read endpoints.
+- [ ] Document Sprint 2 response shapes in `API.md` where implementation diverges from the draft.
+
 ## Phase 0 — Backend Foundation
 
 - [x] Choose backend stack and framework.
@@ -58,8 +112,8 @@ These APIs complete the broader Phase 2 scope but are not required for the first
 - [ ] Implement `GET /api/v1/layers/airflow`.
 - [ ] Implement `GET /api/v1/layers/power-paths`.
 - [ ] Implement `PUT /api/v1/users/me/layer-state`.
-- [ ] Implement `GET /api/v1/assets/{assetId}/metrics/latest`.
-- [ ] Implement `GET /api/v1/assets/{assetId}/metrics/timeseries`.
+- [x] Implement `GET /api/v1/assets/{assetId}/metrics/latest`.
+- [x] Implement `GET /api/v1/assets/{assetId}/metrics/timeseries`.
 - [ ] Implement downsampling for chart queries.
 - [ ] Implement realtime telemetry stream.
 
@@ -74,8 +128,8 @@ These APIs complete the broader Phase 2 scope but are not required for the first
 
 ## Phase 5 — Alarm, SOP, CCTV
 
-- [ ] Implement `GET /api/v1/alarms`.
-- [ ] Implement `GET /api/v1/alarms/{alarmId}`.
+- [x] Implement `GET /api/v1/alarms`.
+- [x] Implement `GET /api/v1/alarms/{alarmId}`.
 - [ ] Implement `POST /api/v1/alarms/{alarmId}/acknowledge`.
 - [ ] Implement `POST /api/v1/alarms/{alarmId}/assign`.
 - [ ] Implement `POST /api/v1/alarms/{alarmId}/resolve`.
@@ -125,13 +179,3 @@ These APIs complete the broader Phase 2 scope but are not required for the first
 - [ ] Add backup/restore runbook.
 - [ ] Add retention/compression policy verification.
 - [ ] Add observability dashboard for API latency, DB latency, ingest rate, alarm rate.
-
-## Suggested First Sprint
-
-1. [x] Foundation: DB connection, health, error format, logging.
-2. [x] Auth/RBAC: login, me, middleware.
-3. [x] Read-only core APIs: facility tree, assets list/detail, scene manifest.
-4. [ ] Telemetry latest/timeseries read APIs.
-5. [ ] Alarm list/detail read APIs.
-
-Deliverable: frontend can login, load 3D scene context, click asset, see metrics and alarms.
