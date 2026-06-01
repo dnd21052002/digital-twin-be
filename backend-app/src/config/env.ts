@@ -20,15 +20,33 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+const DEFAULT_JWT_SECRET = 'change-me-local-secret';
+const DEFAULT_API_KEY_PEPPER = 'change-me-local-api-key-pepper';
+
 export function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
+
+  assertProductionSecrets(parsed.data);
   return parsed.data;
 }
 
 export function getCorsOrigins(env: Env): string[] {
   return env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean);
+}
+
+function assertProductionSecrets(env: Env): void {
+  const isProduction = env.NODE_ENV === 'production' || env.APP_ENV === 'production';
+  if (!isProduction) return;
+
+  const invalidSecrets: string[] = [];
+  if (env.JWT_SECRET === DEFAULT_JWT_SECRET) invalidSecrets.push('JWT_SECRET');
+  if (env.API_KEY_PEPPER === DEFAULT_API_KEY_PEPPER) invalidSecrets.push('API_KEY_PEPPER');
+
+  if (invalidSecrets.length > 0) {
+    throw new Error(`Invalid production environment configuration: replace default ${invalidSecrets.join(', ')}`);
+  }
 }

@@ -24,7 +24,7 @@
 - [x] Implement `POST /api/v1/auth/refresh`.
 - [x] Implement `GET /api/v1/me`.
 - [x] Implement RBAC middleware using `iam.role`, `iam.permission`.
-- [x] Implement API key auth for integration endpoints.
+- [x] Implement API key auth foundation for integration endpoints.
 - [ ] Write audit entries for login/logout/permission changes.
 - [x] Add seed/admin user creation process.
 

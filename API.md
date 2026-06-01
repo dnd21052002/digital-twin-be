@@ -35,8 +35,12 @@ Response:
   "expiresIn": 900,
   "user": {
     "id": "uuid",
+    "username": "admin",
+    "email": "admin@example.com",
     "displayName": "Admin",
-    "roles": ["admin"]
+    "avatarInitials": "AD",
+    "roles": ["ADMIN"],
+    "permissions": ["user:manage"]
   }
 }
 ```
