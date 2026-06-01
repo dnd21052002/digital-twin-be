@@ -8,15 +8,14 @@
 
 ## Phase 0 — Backend Foundation
 
-- [ ] Choose backend stack and framework.
-- [ ] Create backend source repository/folder structure.
-- [ ] Add database connection config for PostgreSQL/Timescale/PostGIS.
-- [ ] Add migration/bootstrap strategy around existing `run_all.sql`.
-- [ ] Add health endpoint: `GET /health`.
-- [ ] Add structured logging with request IDs.
-- [ ] Add global error handler using `API.md` error format.
-- [ ] Add request validation layer.
-- [ ] Add OpenAPI generation or API schema docs.
+- [x] Choose backend stack and framework.
+- [x] Create backend source repository/folder structure.
+- [x] Add database connection config for PostgreSQL/Timescale/PostGIS.
+- [x] Add health endpoint: `GET /health`.
+- [x] Add structured logging with request IDs.
+- [x] Add global error handler using `API.md` error format.
+- [x] Add request validation layer.
+- [x] Add OpenAPI generation or API schema docs.
 
 ## Phase 1 — Auth & RBAC
 
