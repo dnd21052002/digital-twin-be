@@ -69,7 +69,7 @@ export class FacilityRepository {
         b.building_id::text AS building_id,
         f.floor_id::text AS floor_id,
         h.hall_id::text AS hall_id,
-        NULL::text AS zone_id,
+        z.zone_id::text AS zone_id,
         r.row_id::text AS row_id
       FROM facility.rack_position rp
       INNER JOIN facility.row r ON r.row_id = rp.row_id
@@ -77,13 +77,17 @@ export class FacilityRepository {
       INNER JOIN facility.floor f ON f.floor_id = h.floor_id
       INNER JOIN facility.building b ON b.building_id = f.building_id
       INNER JOIN facility.site s ON s.site_id = b.site_id
+      LEFT JOIN asset.asset current_rack
+        ON current_rack.asset_id = rp.current_rack_id
+       AND current_rack.deleted_at IS NULL
+      LEFT JOIN facility.zone z ON z.zone_id = current_rack.zone_id
       WHERE s.deleted_at IS NULL
         AND b.deleted_at IS NULL
         AND (${query.siteId ?? null}::text IS NULL OR s.site_id::text = ${query.siteId ?? null})
         AND (${query.buildingId ?? null}::text IS NULL OR b.building_id::text = ${query.buildingId ?? null})
         AND (${query.floorId ?? null}::text IS NULL OR f.floor_id::text = ${query.floorId ?? null})
         AND (${query.hallId ?? null}::text IS NULL OR h.hall_id::text = ${query.hallId ?? null})
-        AND (${query.zoneId ?? null}::text IS NULL OR NULL::text = ${query.zoneId ?? null})
+        AND (${query.zoneId ?? null}::text IS NULL OR z.zone_id::text = ${query.zoneId ?? null})
         AND (${query.rowId ?? null}::text IS NULL OR r.row_id::text = ${query.rowId ?? null})
         AND (${query.cursor ?? null}::text IS NULL OR rp.rack_pos_id::text > ${query.cursor ?? null})
       ORDER BY rp.rack_pos_id::text

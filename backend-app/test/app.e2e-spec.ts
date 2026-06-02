@@ -18,7 +18,7 @@ describe('App e2e', () => {
   let app: INestApplication;
   let db: DbService;
   let password: string;
-  let assetFixture: { assetId: string; siteId: string; buildingId: string; floorId: string; hallId: string; zoneId: string; rowId: string; rackPositionId: string };
+  let assetFixture: { assetId: string; rackAssetId: string; siteId: string; buildingId: string; floorId: string; hallId: string; zoneId: string; rowId: string; rackPositionId: string };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -123,7 +123,7 @@ describe('App e2e', () => {
     const rackPosition = await sql<{ rack_pos_id: string }>`
       INSERT INTO facility.rack_position (row_id, position_index, code, geom, max_u, max_power_kw)
       VALUES (${row.rows[0].row_id}, 1, 'E2E-RP1', ST_SetSRID(ST_MakePoint(1, 1, 0), 4326), 42, 12.5)
-      ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom
+      ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom, current_rack_id = NULL
       RETURNING rack_pos_id::text AS rack_pos_id
     `.execute(db.db);
     await sql`
@@ -155,8 +155,35 @@ describe('App e2e', () => {
           deleted_at = NULL
       RETURNING asset_id::text AS asset_id
     `.execute(db.db);
+    const rackAsset = await sql<{ asset_id: string }>`
+      INSERT INTO asset.asset (asset_id, asset_tag, display_name, category_code, rack_pos_id, hall_id, zone_id, rotation_deg, status, attributes, deleted_at)
+      VALUES ('33333333-3333-4333-8333-333333333333', 'E2E-RACK-001', 'E2E Rack One', 'IT_RACK', ${rackPosition.rows[0].rack_pos_id}, ${hall.rows[0].hall_id}, ${zone.rows[0].zone_id}, 0, 'online', '{"owner":"qa"}'::jsonb, NULL)
+      ON CONFLICT (asset_tag) DO UPDATE
+      SET display_name = EXCLUDED.display_name,
+          category_code = EXCLUDED.category_code,
+          rack_pos_id = EXCLUDED.rack_pos_id,
+          hall_id = EXCLUDED.hall_id,
+          zone_id = EXCLUDED.zone_id,
+          rotation_deg = EXCLUDED.rotation_deg,
+          status = EXCLUDED.status,
+          attributes = EXCLUDED.attributes,
+          deleted_at = NULL
+      RETURNING asset_id::text AS asset_id
+    `.execute(db.db);
+    await sql`
+      INSERT INTO asset.rack (asset_id, total_u, used_u, power_capacity_kw, cooling_demand_kw, phase, network_uplink_gbps)
+      VALUES (${rackAsset.rows[0].asset_id}, 42, 0, 12.5, 1.5, '1P', 10)
+      ON CONFLICT (asset_id) DO UPDATE
+      SET total_u = EXCLUDED.total_u,
+          used_u = EXCLUDED.used_u,
+          power_capacity_kw = EXCLUDED.power_capacity_kw,
+          cooling_demand_kw = EXCLUDED.cooling_demand_kw,
+          phase = EXCLUDED.phase,
+          network_uplink_gbps = EXCLUDED.network_uplink_gbps
+    `.execute(db.db);
     assetFixture = {
       assetId: asset.rows[0].asset_id,
+      rackAssetId: rackAsset.rows[0].asset_id,
       siteId: site.rows[0].site_id,
       buildingId: building.rows[0].building_id,
       floorId: floor.rows[0].floor_id,
@@ -260,6 +287,31 @@ describe('App e2e', () => {
             rowId: assetFixture.rowId,
           },
         });
+      });
+  });
+
+  it('GET /api/v1/facility/rack-positions filters by current rack zone', async () => {
+    const token = await login();
+    await sql`
+      UPDATE facility.rack_position
+      SET current_rack_id = ${assetFixture.rackAssetId}
+      WHERE rack_pos_id = ${assetFixture.rackPositionId}
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?zoneId=${assetFixture.zoneId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: assetFixture.rackPositionId,
+              currentRackId: assetFixture.rackAssetId,
+              location: expect.objectContaining({ zoneId: assetFixture.zoneId }),
+            }),
+          ]),
+        );
       });
   });
 
