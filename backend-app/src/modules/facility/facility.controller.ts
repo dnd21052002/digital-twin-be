@@ -1,4 +1,4 @@
-import { Controller, DefaultValuePipe, Get, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { ApiErrorResponseDto } from '../../common/swagger/api-response.dto';
 import { AuthGuard } from '../iam/auth.guard';
@@ -35,15 +35,12 @@ export class FacilityController {
   @ApiQuery({ name: 'hallId', required: false })
   @ApiQuery({ name: 'zoneId', required: false })
   @ApiQuery({ name: 'rowId', required: false })
-  @ApiQuery({ name: 'limit', required: false, schema: { default: 50, maximum: 100 } })
+  @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', default: 50, minimum: 1, maximum: 100 } })
   @ApiQuery({ name: 'cursor', required: false })
   @ApiOkResponse({ type: RackPositionsResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
   @ApiForbiddenResponse({ type: ApiErrorResponseDto })
-  getRackPositions(
-    @Query() query: RackPositionsQueryDto,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
-  ) {
-    return this.facility.getRackPositions({ ...query, limit });
+  getRackPositions(@Query() query: RackPositionsQueryDto) {
+    return this.facility.getRackPositions(query);
   }
 }

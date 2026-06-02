@@ -8,7 +8,7 @@ export class FacilityService {
   constructor(private readonly repository: FacilityRepository) {}
 
   async getRackPositions(query: RackPositionsQueryDto): Promise<RackPositionsResponse> {
-    const limit = Math.min(query.limit ?? 50, 100);
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
     const rows = await this.repository.listRackPositions({ ...query, limit });
     const page = rows.slice(0, limit);
 

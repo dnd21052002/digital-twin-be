@@ -290,6 +290,17 @@ describe('App e2e', () => {
       });
   });
 
+  it('GET /api/v1/facility/rack-positions rejects negative limit', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/facility/rack-positions?limit=-1')
+      .set('authorization', `Bearer ${token}`)
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.error.code).toBe('validation_failed');
+      });
+  });
+
   it('GET /api/v1/facility/rack-positions filters by current rack zone', async () => {
     const token = await login();
     await sql`
