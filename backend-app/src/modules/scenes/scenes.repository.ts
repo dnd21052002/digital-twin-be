@@ -66,6 +66,7 @@ export class ScenesRepository {
   async listSceneAssets(sceneId: string, query: SceneAssetsQuery): Promise<SceneAssetSummaryRow[]> {
     const limit = clampLimit(query.limit);
     const bbox = parseBbox(query.bbox);
+    const lod = parseLod(query.lod);
     const result = await sql<SceneAssetSummaryRow>`
       WITH selected_scene AS (
         SELECT scene_id, site_id
@@ -97,13 +98,27 @@ export class ScenesRepository {
       LEFT JOIN facility.floor f ON f.floor_id = h.floor_id
       LEFT JOIN facility.building b ON b.building_id = f.building_id
       LEFT JOIN facility.site s ON s.site_id = b.site_id
+      CROSS JOIN LATERAL (
+        SELECT COALESCE(a.attributes->>'lod', a.attributes->>'lodLevel', a.attributes->>'lod_level') AS raw_lod
+      ) lod_attr
       WHERE a.deleted_at IS NULL
         AND s.site_id = ss.site_id
         AND (${query.cursor ?? null}::text IS NULL OR a.asset_id::text > ${query.cursor ?? null})
         AND (
           ${bbox ? bbox[0] : null}::float8 IS NULL
-          OR a.geom IS NULL
-          OR ST_Intersects(a.geom, ST_MakeEnvelope(${bbox ? bbox[0] : null}, ${bbox ? bbox[1] : null}, ${bbox ? bbox[3] : null}, ${bbox ? bbox[4] : null}, 4326))
+          OR (
+            a.geom IS NOT NULL
+            AND ST_X(a.geom) BETWEEN ${bbox ? bbox[0] : null} AND ${bbox ? bbox[3] : null}
+            AND ST_Y(a.geom) BETWEEN ${bbox ? bbox[1] : null} AND ${bbox ? bbox[4] : null}
+            AND ST_Z(a.geom) IS NOT NULL
+            AND ST_Z(a.geom) BETWEEN ${bbox ? bbox[2] : null} AND ${bbox ? bbox[5] : null}
+          )
+        )
+        AND (
+          ${lod}::float8 IS NULL
+          OR lod_attr.raw_lod IS NULL
+          OR lod_attr.raw_lod !~ '^[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$'
+          OR lod_attr.raw_lod::float8 <= ${lod}
         )
       ORDER BY a.asset_id::text
       LIMIT ${limit + 1}
@@ -166,6 +181,12 @@ function parseBbox(bbox?: string): [number, number, number, number, number, numb
   const [minX, minY, minZ, maxX, maxY, maxZ] = values;
   if (minX > maxX || minY > maxY || minZ > maxZ) return null;
   return [minX, minY, minZ, maxX, maxY, maxZ];
+}
+
+function parseLod(lod?: number | string): number | null {
+  if (lod == null || lod === '') return null;
+  const value = Number(lod);
+  return Number.isFinite(value) ? value : null;
 }
 
 function toIso(value: Date | string): string {

@@ -457,6 +457,68 @@ describe('App e2e', () => {
       });
   });
 
+  it('GET /api/v1/scenes/:sceneId/assets applies 3D bbox filtering', async () => {
+    const token = await login();
+    const scene = await sql<{ scene_id: string }>`
+      INSERT INTO geom3d.scene (scene_id, site_id, name, environment, lod_strategy, is_default)
+      VALUES ('55555555-5555-4555-8555-555555555555', ${assetFixture.siteId}, 'E2E Scene', '{}'::jsonb, 'hybrid', true)
+      ON CONFLICT (scene_id) DO UPDATE SET site_id = EXCLUDED.site_id, name = EXCLUDED.name
+      RETURNING scene_id::text AS scene_id
+    `.execute(db.db);
+    await sql`
+      UPDATE asset.asset
+      SET geom = ST_SetSRID(ST_MakePoint(2, 3, 4), 4326), attributes = '{"owner":"qa"}'::jsonb
+      WHERE asset_id = ${assetFixture.assetId}
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?bbox=1,2,3,3,4,5&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?bbox=1,2,5,3,4,6&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(false);
+      });
+  });
+
+  it('GET /api/v1/scenes/:sceneId/assets applies lod filtering from asset attributes', async () => {
+    const token = await login();
+    const scene = await sql<{ scene_id: string }>`
+      INSERT INTO geom3d.scene (scene_id, site_id, name, environment, lod_strategy, is_default)
+      VALUES ('55555555-5555-4555-8555-555555555555', ${assetFixture.siteId}, 'E2E Scene', '{}'::jsonb, 'hybrid', true)
+      ON CONFLICT (scene_id) DO UPDATE SET site_id = EXCLUDED.site_id, name = EXCLUDED.name
+      RETURNING scene_id::text AS scene_id
+    `.execute(db.db);
+    await sql`
+      UPDATE asset.asset
+      SET attributes = '{"owner":"qa","lodLevel":2}'::jsonb
+      WHERE asset_id = ${assetFixture.assetId}
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?lod=2&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?lod=1&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(false);
+      });
+  });
+
   it('GET /api/v1/scenes/:sceneId/assets returns 404 for missing scene', async () => {
     const token = await login();
     await request(app.getHttpServer())
