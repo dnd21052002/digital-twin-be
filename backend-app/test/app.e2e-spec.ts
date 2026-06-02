@@ -437,6 +437,35 @@ describe('App e2e', () => {
       });
   });
 
+  it('GET /api/v1/scenes/:sceneId/assets returns scene asset list shape', async () => {
+    const token = await login();
+    const scene = await sql<{ scene_id: string }>`
+      INSERT INTO geom3d.scene (scene_id, site_id, name, environment, lod_strategy, is_default)
+      VALUES ('55555555-5555-4555-8555-555555555555', ${assetFixture.siteId}, 'E2E Scene', '{}'::jsonb, 'hybrid', true)
+      ON CONFLICT (scene_id) DO UPDATE SET site_id = EXCLUDED.site_id, name = EXCLUDED.name
+      RETURNING scene_id::text AS scene_id
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        expect(body.nextCursor).toBeNull();
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(true);
+      });
+  });
+
+  it('GET /api/v1/scenes/:sceneId/assets returns 404 for missing scene', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/scenes/66666666-6666-4666-8666-666666666666/assets')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Scene not found'); });
+  });
+
   it('documents sceneId path parameter for scene manifest', () => {
     const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
 
