@@ -235,6 +235,34 @@ describe('App e2e', () => {
       });
   });
 
+  it('GET /api/v1/facility/rack-positions returns filtered rack positions', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?siteId=${assetFixture.siteId}&limit=1`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.nextCursor).toBeNull();
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0]).toMatchObject({
+          id: assetFixture.rackPositionId,
+          code: 'E2E-RP1',
+          positionIndex: 1,
+          maxU: 42,
+          maxPowerKw: 12.5,
+          currentRackId: null,
+          location: {
+            siteId: assetFixture.siteId,
+            buildingId: assetFixture.buildingId,
+            floorId: assetFixture.floorId,
+            hallId: assetFixture.hallId,
+            zoneId: null,
+            rowId: assetFixture.rowId,
+          },
+        });
+      });
+  });
+
   it('GET /api/v1/assets lists assets with filters and cursor shape', async () => {
     const token = await login();
     await request(app.getHttpServer())
