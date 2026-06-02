@@ -556,6 +556,34 @@ describe('App e2e', () => {
     );
   });
 
+  it('documents sprint 2 viewer navigation parameters', () => {
+    const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+
+    expect(document.paths['/api/v1/facility/rack-positions']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'siteId', in: 'query' }),
+        expect.objectContaining({ name: 'limit', in: 'query' }),
+      ]),
+    );
+    expect(document.paths['/api/v1/racks/{rackId}']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'rackId', in: 'path', required: true }),
+      ]),
+    );
+    expect(document.paths['/api/v1/scenes/{sceneId}/assets']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'sceneId', in: 'path', required: true }),
+        expect.objectContaining({ name: 'bbox', in: 'query' }),
+      ]),
+    );
+    expect(document.paths['/api/v1/viewpoints']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'sceneId', in: 'query' }),
+        expect.objectContaining({ name: 'type', in: 'query' }),
+      ]),
+    );
+  });
+
   it('GET /api/v1/scenes/:sceneId/manifest returns 404 for missing scene', async () => {
     const token = await login();
     await request(app.getHttpServer())
