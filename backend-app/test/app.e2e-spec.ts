@@ -528,6 +528,17 @@ describe('App e2e', () => {
       .expect(({ body }) => { expect(body.error.message).toBe('Scene not found'); });
   });
 
+  it('GET /api/v1/viewpoints returns list shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/viewpoints')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+      });
+  });
+
   it('documents sceneId path parameter for scene manifest', () => {
     const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
 

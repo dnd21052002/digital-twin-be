@@ -9,6 +9,7 @@ import { IamModule } from './modules/iam/iam.module';
 import { RacksModule } from './modules/racks/racks.module';
 import { ScenesModule } from './modules/scenes/scenes.module';
 import { TelemetryModule } from './modules/telemetry/telemetry.module';
+import { ViewerModule } from './modules/viewer/viewer.module';
 
-@Module({ imports: [LoggerModule, DbModule, HealthModule, IamModule, FacilityModule, AssetsModule, RacksModule, ScenesModule, TelemetryModule, AlarmsModule] })
+@Module({ imports: [LoggerModule, DbModule, HealthModule, IamModule, FacilityModule, AssetsModule, RacksModule, ScenesModule, ViewerModule, TelemetryModule, AlarmsModule] })
 export class AppModule {}
