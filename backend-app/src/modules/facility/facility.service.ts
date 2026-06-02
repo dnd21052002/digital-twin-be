@@ -29,7 +29,7 @@ export class FacilityService {
           rowId: row.row_id,
         },
       })),
-      nextCursor: rows.length > limit ? rows[limit].id : null,
+      nextCursor: rows.length > limit ? page[page.length - 1]?.id ?? null : null,
     };
   }
 

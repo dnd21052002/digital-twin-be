@@ -18,7 +18,7 @@ describe('App e2e', () => {
   let app: INestApplication;
   let db: DbService;
   let password: string;
-  let assetFixture: { assetId: string; rackAssetId: string; siteId: string; buildingId: string; floorId: string; hallId: string; zoneId: string; rowId: string; rackPositionId: string };
+  let assetFixture: { assetId: string; rackAssetId: string; siteId: string; buildingId: string; floorId: string; hallId: string; zoneId: string; rowId: string; rackPositionId: string; rackPosition2Id: string };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -126,6 +126,12 @@ describe('App e2e', () => {
       ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom, current_rack_id = NULL
       RETURNING rack_pos_id::text AS rack_pos_id
     `.execute(db.db);
+    const rackPosition2 = await sql<{ rack_pos_id: string }>`
+      INSERT INTO facility.rack_position (row_id, position_index, code, geom, max_u, max_power_kw)
+      VALUES (${row.rows[0].row_id}, 2, 'E2E-RP2', ST_SetSRID(ST_MakePoint(2, 1, 0), 4326), 42, 12.5)
+      ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom, current_rack_id = NULL
+      RETURNING rack_pos_id::text AS rack_pos_id
+    `.execute(db.db);
     await sql`
       INSERT INTO asset.asset_category (code, name)
       VALUES ('e2e-server', 'E2E Server')
@@ -172,6 +178,12 @@ describe('App e2e', () => {
           deleted_at = NULL
       RETURNING asset_id::text AS asset_id
     `.execute(db.db);
+    await sql`
+      UPDATE facility.rack_position
+      SET current_rack_id = ${rackAsset.rows[0].asset_id}
+      WHERE rack_pos_id = ${rackPosition.rows[0].rack_pos_id}
+    `.execute(db.db);
+
     assetFixture = {
       assetId: asset.rows[0].asset_id,
       rackAssetId: rackAsset.rows[0].asset_id,
@@ -182,6 +194,7 @@ describe('App e2e', () => {
       zoneId: zone.rows[0].zone_id,
       rowId: row.rows[0].row_id,
       rackPositionId: rackPosition.rows[0].rack_pos_id,
+      rackPosition2Id: rackPosition2.rows[0].rack_pos_id,
     };
   });
 
@@ -253,31 +266,44 @@ describe('App e2e', () => {
       });
   });
 
-  it('GET /api/v1/facility/rack-positions returns filtered rack positions', async () => {
+  it('GET /api/v1/facility/rack-positions returns filtered rack positions without skipping after cursor', async () => {
     const token = await login();
-    await request(app.getHttpServer())
+    const firstPage = await request(app.getHttpServer())
       .get(`/api/v1/facility/rack-positions?siteId=${assetFixture.siteId}&limit=1`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(firstPage.body.nextCursor).toBe(assetFixture.rackPositionId);
+    expect(firstPage.body.items).toHaveLength(1);
+    expect(firstPage.body.items[0]).toMatchObject({
+      id: assetFixture.rackPositionId,
+      code: 'E2E-RP1',
+      positionIndex: 1,
+      maxU: 42,
+      maxPowerKw: 12.5,
+      currentRackId: assetFixture.rackAssetId,
+      location: {
+        siteId: assetFixture.siteId,
+        buildingId: assetFixture.buildingId,
+        floorId: assetFixture.floorId,
+        hallId: assetFixture.hallId,
+        zoneId: assetFixture.zoneId,
+        rowId: assetFixture.rowId,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?siteId=${assetFixture.siteId}&limit=1&cursor=${firstPage.body.nextCursor}`)
       .set('authorization', `Bearer ${token}`)
       .expect(200)
       .expect(({ body }) => {
-        expect(body.nextCursor).toBeNull();
-        expect(body.items).toHaveLength(1);
-        expect(body.items[0]).toMatchObject({
-          id: assetFixture.rackPositionId,
-          code: 'E2E-RP1',
-          positionIndex: 1,
-          maxU: 42,
-          maxPowerKw: 12.5,
-          currentRackId: null,
-          location: {
-            siteId: assetFixture.siteId,
-            buildingId: assetFixture.buildingId,
-            floorId: assetFixture.floorId,
-            hallId: assetFixture.hallId,
-            zoneId: null,
-            rowId: assetFixture.rowId,
-          },
-        });
+        expect(body.items).toEqual([
+          expect.objectContaining({
+            id: assetFixture.rackPosition2Id,
+            code: 'E2E-RP2',
+            positionIndex: 2,
+          }),
+        ]);
       });
   });
 
@@ -415,6 +441,15 @@ describe('App e2e', () => {
           activeAlarmSummary: null,
         });
       });
+  });
+
+  it('GET /api/v1/racks/:rackId returns 404 for ordinary non-rack asset', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/racks/${assetFixture.assetId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Rack not found'); });
   });
 
   it('GET /api/v1/racks/:rackId returns 404 for missing rack', async () => {

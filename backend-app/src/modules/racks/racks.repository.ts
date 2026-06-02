@@ -82,7 +82,7 @@ export class RacksRepository {
       FROM asset.asset a
       LEFT JOIN asset.asset_category ac ON ac.code = a.category_code
       LEFT JOIN asset.asset_model am ON am.model_id = a.model_id
-      LEFT JOIN facility.rack_position rp ON rp.rack_pos_id = a.rack_pos_id
+      INNER JOIN facility.rack_position rp ON rp.current_rack_id = a.asset_id
       LEFT JOIN facility.row r ON r.row_id = rp.row_id
       LEFT JOIN facility.zone z ON z.zone_id = a.zone_id
       LEFT JOIN facility.hall h ON h.hall_id = COALESCE(r.hall_id, a.hall_id, z.hall_id)
