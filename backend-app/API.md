@@ -118,9 +118,12 @@ Requires `asset:read`.
 
 Requires `asset:read`.
 
-- `GET /kpi` — query: `siteId?`, `from?`, `to?`
-- `GET /capacity/summary` — query: `siteId?`, `hallId?`
-- `GET /capacity/trend` — query: `siteId?`, `hallId?`, `from?`, `to?`, `metric?`
+- `GET /kpis/latest` — returns `{ items: [{ kpiId, code, name, value, unit, targetValue, timestamp }] }`
+- `GET /kpis/timeseries` — query: `from?`, `to?`, `interval?`
+- `GET /capacity/summary` — query: `siteId?`, `hallId?`; returns `{ items: [{ zoneId, powerTotal, powerUsed, powerAvailable, coolingTotal, coolingUsed, coolingAvailable, spaceTotal, spaceUsed, spaceAvailable }] }`
+- `POST /capacity/placement-recommendations` — body: `{ siteId, requiredPowerKw?, requiredCoolingKw?, requiredU? }` → `{ recommendationId, items: [{ rackPositionId, score, reasons }] }`
+
+> **Divergence from draft:** KPI route is `/kpis/latest` not `/kpi`; timeseries at `/kpis/timeseries` not inline; `/capacity/trend` not yet implemented; `/capacity/placement-recommendations` added.
 
 ---
 

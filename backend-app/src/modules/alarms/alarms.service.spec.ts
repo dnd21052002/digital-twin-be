@@ -81,6 +81,28 @@ describe('AlarmsService', () => {
     expect(res.items[0].asset).toBeNull();
   });
 
+  it('listAlarms passes status filter to repo', async () => {
+    const r = { listAlarms: jest.fn().mockResolvedValue([]) };
+    const s = new AlarmsService(r as never);
+    await s.listAlarms({ status: 'new', limit: 5 } as never);
+    expect(r.listAlarms).toHaveBeenCalledWith(expect.objectContaining({ status: 'new' }));
+  });
+
+  it('listAlarms passes cursor to repo', async () => {
+    const r = { listAlarms: jest.fn().mockResolvedValue([]) };
+    const s = new AlarmsService(r as never);
+    await s.listAlarms({ cursor: '2026-01-15T00:00:00Z', limit: 5 } as never);
+    expect(r.listAlarms).toHaveBeenCalledWith(expect.objectContaining({ cursor: '2026-01-15T00:00:00Z' }));
+  });
+
+  it('listAlarms nextCursor uses last item raisedAt', async () => {
+    const rows = Array.from({ length: 3 }, (_, i) => makeSummaryRow(`a${i}`, `2026-01-0${i + 1}T00:00:00Z`));
+    const r = { listAlarms: jest.fn().mockResolvedValue(rows) };
+    const s = new AlarmsService(r as never);
+    const res = await s.listAlarms({ limit: 2 } as never);
+    expect(res.nextCursor).toBe(new Date(rows[1].raised_at).toISOString());
+  });
+
   // ── getAlarm (Sprint 1) ──
 
   it('getAlarm throws NotFound when missing', async () => {

@@ -749,7 +749,53 @@ describe('App e2e', () => {
       .expect(({ body }) => { expect(body.error.message).toBe('Alarm not found'); });
   });
 
-  // ── Permission tests: unauthenticated → 401 ──
+  // ── KPI & Capacity E2E smoke tests ──
+
+  it('GET /api/v1/kpis/latest returns KPI shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/kpis/latest')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        if (body.items.length > 0) {
+          expect(body.items[0]).toMatchObject({
+            kpiId: expect.any(String),
+            code: expect.any(String),
+            name: expect.any(String),
+            value: expect.any(Number),
+            unit: expect.any(String),
+          });
+        }
+      });
+  });
+
+  it('GET /api/v1/capacity/summary returns capacity shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/capacity/summary')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        if (body.items.length > 0) {
+          const item = body.items[0];
+          expect(item).toMatchObject({
+            zoneId: expect.any(String),
+            powerTotal: expect.any(Number),
+            powerUsed: expect.any(Number),
+            powerAvailable: expect.any(Number),
+            coolingTotal: expect.any(Number),
+            coolingUsed: expect.any(Number),
+            coolingAvailable: expect.any(Number),
+            spaceTotal: expect.any(Number),
+            spaceUsed: expect.any(Number),
+            spaceAvailable: expect.any(Number),
+          });
+        }
+      });
+  });
 
   it('rejects unauthenticated GET /api/v1/assets with 401', async () => {
     await request(app.getHttpServer()).get('/api/v1/assets').expect(401);
@@ -793,6 +839,50 @@ describe('App e2e', () => {
     const limitedToken = await createLimitedUser('asset:read');
     await request(app.getHttpServer())
       .get('/api/v1/alarms?limit=1')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('alarm:read user can access alarms but not assets (403)', async () => {
+    const alarmToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?limit=1')
+      .set('authorization', `Bearer ${alarmToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/assets?limit=1')
+      .set('authorization', `Bearer ${alarmToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for telemetry endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/latest`)
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for layers endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/layers/types')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for kpis endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/kpis/latest')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for capacity endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/capacity/summary')
       .set('authorization', `Bearer ${limitedToken}`)
       .expect(403);
   });

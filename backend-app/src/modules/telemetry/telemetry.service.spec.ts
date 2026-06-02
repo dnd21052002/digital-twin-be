@@ -36,6 +36,17 @@ describe('TelemetryService', () => {
     await expect(s.latestMetrics('a')).resolves.toEqual({ assetId: 'a', items: [] });
   });
 
+  it('latestMetrics maps non-string quality values', async () => {
+    const rows: LatestMetricRow[] = [
+      { asset_id: 'a', metric_key: 'hPa', name: 'Pressure', unit: 'hPa', timestamp: '2026-06-01T00:00:00Z', value: '1013', quality: '0' as any },
+    ];
+    const r = { assetExists: jest.fn().mockResolvedValue(true), latestMetrics: jest.fn().mockResolvedValue(rows) };
+    const s = new TelemetryService(r as never);
+    const res = await s.latestMetrics('a');
+    expect(res.items[0].quality).toBe(0);
+    expect(res.items[0].value).toBe(1013);
+  });
+
   // ── metricTimeseries ──
 
   it('metricTimeseries throws NotFound when asset missing', async () => {
@@ -71,6 +82,27 @@ describe('TelemetryService', () => {
         { value: 23, quality: null },
       ],
     });
+    expect(typeof res.points[0].timestamp).toBe('string');
+    expect(typeof res.points[1].timestamp).toBe('string');
+  });
+
+  it('metricTimeseries handles zero and negative values', async () => {
+    const rows: TimeseriesMetricRow[] = [
+      { timestamp: '2026-01-01T00:00:00Z', value: '0', quality: '50', unit: 'C' },
+      { timestamp: '2026-01-01T01:00:00Z', value: '-5.2', quality: '100', unit: 'C' },
+    ];
+    const r = { assetExists: jest.fn().mockResolvedValue(true), metricTimeseries: jest.fn().mockResolvedValue(rows) };
+    const s = new TelemetryService(r as never);
+    const res = await s.metricTimeseries('a', { metric: 't', from: '2026-01-01T00:00:00Z', to: '2026-01-01T01:00:00Z' } as never);
+    expect(res.points[0].value).toBe(0);
+    expect(res.points[1].value).toBe(-5.2);
+  });
+
+  it('metricTimeseries passes limit to repository', async () => {
+    const r = { assetExists: jest.fn().mockResolvedValue(true), metricTimeseries: jest.fn().mockResolvedValue([]) };
+    const s = new TelemetryService(r as never);
+    await s.metricTimeseries('a', { metric: 't', from: '2026-01-01T00:00:00Z', to: '2026-01-01T01:00:00Z', limit: 42 } as never);
+    expect(r.metricTimeseries).toHaveBeenCalledWith('a', expect.objectContaining({ limit: 42 }));
   });
 
   it('metricTimeseries empty rows returns null unit', async () => {
