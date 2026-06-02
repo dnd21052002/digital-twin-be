@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ViewpointsQueryDto } from './dto/viewpoints-query.dto';
-import { ViewpointRow, ViewpointSummary, ViewpointsResponse } from './viewer.types';
+import { CreateViewPresetDto } from './dto/create-view-preset.dto';
+import { ViewpointRow, ViewpointSummary, ViewpointsResponse, ViewPresetRow, ViewPresetResponse } from './viewer.types';
 import { ViewerRepository } from './viewer.repository';
 
 @Injectable()
@@ -11,6 +12,21 @@ export class ViewerService {
     const rows = await this.repository.listViewpoints(query);
     return { items: rows.map(toViewpointSummary) };
   }
+
+  async createViewPreset(userId: string, dto: CreateViewPresetDto): Promise<ViewPresetResponse> {
+    const row = await this.repository.createViewPreset(userId, dto);
+    return toViewPresetResponse(row);
+  }
+}
+
+function toViewPresetResponse(row: ViewPresetRow): ViewPresetResponse {
+  return {
+    id: row.preset_id,
+    name: row.name,
+    userId: row.user_id,
+    sceneId: row.scene_id,
+    createdAt: row.created_at.toISOString(),
+  };
 }
 
 function toViewpointSummary(row: ViewpointRow): ViewpointSummary {

@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { sql } from 'kysely';
 import { DbService } from '../../db/db.service';
 import { ViewpointsQueryDto } from './dto/viewpoints-query.dto';
-import { ViewpointRow } from './viewer.types';
+import { CreateViewPresetDto } from './dto/create-view-preset.dto';
+import { ViewpointRow, ViewPresetRow } from './viewer.types';
 
 @Injectable()
 export class ViewerRepository {
@@ -51,5 +52,21 @@ export class ViewerRepository {
     `.execute(this.db);
 
     return result.rows;
+  }
+
+  async createViewPreset(userId: string, dto: CreateViewPresetDto): Promise<ViewPresetRow> {
+    const r = await sql<ViewPresetRow>`
+      INSERT INTO viewer.user_view_preset (user_id, scene_id, name, position, target, fov_deg)
+      VALUES (
+        ${userId},
+        ${dto.sceneId ?? null}::uuid,
+        ${dto.name},
+        ST_MakePoint(${dto.position.x}, ${dto.position.y}, ${dto.position.z}),
+        ST_MakePoint(${dto.target.x}, ${dto.target.y}, ${dto.target.z}),
+        ${dto.fov ?? null}
+      )
+      RETURNING preset_id, name, user_id, scene_id::text AS scene_id, created_at
+    `.execute(this.db);
+    return r.rows[0];
   }
 }

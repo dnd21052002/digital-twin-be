@@ -3,14 +3,16 @@ import { LoggerModule } from './common/logging/logger.module';
 import { DbModule } from './db/db.module';
 import { AlarmsModule } from './modules/alarms/alarms.module';
 import { AssetsModule } from './modules/assets/assets.module';
+import { CapacityModule } from './modules/capacity/capacity.module';
 import { FacilityModule } from './modules/facility/facility.module';
 import { HealthModule } from './modules/health/health.module';
 import { IamModule } from './modules/iam/iam.module';
+import { KpiModule } from './modules/kpi/kpi.module';
 import { RacksModule } from './modules/racks/racks.module';
 import { ScenesModule } from './modules/scenes/scenes.module';
 import { TelemetryModule } from './modules/telemetry/telemetry.module';
 import { LayersModule } from './modules/layers/layers.module';
 import { ViewerModule } from './modules/viewer/viewer.module';
 
-@Module({ imports: [LoggerModule, DbModule, HealthModule, IamModule, FacilityModule, AssetsModule, RacksModule, ScenesModule, ViewerModule, TelemetryModule, AlarmsModule, LayersModule] })
+@Module({ imports: [LoggerModule, DbModule, HealthModule, IamModule, FacilityModule, AssetsModule, RacksModule, ScenesModule, ViewerModule, TelemetryModule, AlarmsModule, LayersModule, KpiModule, CapacityModule] })
 export class AppModule {}

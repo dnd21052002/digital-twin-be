@@ -21,3 +21,19 @@ export interface ViewpointRow {
   camera: unknown;
   sort_order: number | string | null;
 }
+
+export interface ViewPresetRow {
+  preset_id: string;
+  name: string;
+  user_id: string;
+  scene_id: string | null;
+  created_at: Date;
+}
+
+export interface ViewPresetResponse {
+  id: string;
+  name: string;
+  userId: string;
+  sceneId: string | null;
+  createdAt: string;
+}
