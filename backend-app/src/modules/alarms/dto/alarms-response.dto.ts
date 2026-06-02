@@ -45,6 +45,38 @@ export class AlarmTimelineEventDto {
   @ApiProperty() payload!: unknown;
 }
 
+export class NearestCameraDto {
+  @ApiProperty({ format: 'uuid' }) cameraId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() streamUrl!: string;
+  @ApiProperty({ type: Number }) coveragePct!: number;
+  @ApiProperty() priority!: number;
+}
+
+export class NearestCamerasResponseDto {
+  @ApiProperty({ type: [NearestCameraDto] }) items!: NearestCameraDto[];
+}
+
+export class SopStepDto {
+  @ApiProperty() stepNumber!: number;
+  @ApiProperty() instruction!: string;
+  @ApiProperty({ nullable: true }) expectedOutcome!: string | null;
+  @ApiProperty({ nullable: true }) requiresRole!: string | null;
+  @ApiProperty({ nullable: true }) estimatedMinutes!: number | null;
+}
+
+export class SopDocumentDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty({ nullable: true }) summary!: string | null;
+}
+
+export class SopResponseDto {
+  @ApiProperty({ type: SopDocumentDto }) sop!: SopDocumentDto;
+  @ApiProperty({ type: [SopStepDto] }) steps!: SopStepDto[];
+}
+
 export class AlarmDetailDto extends AlarmSummaryDto {
   @ApiProperty({ type: AlarmRuleSummaryDto, nullable: true }) rule!: AlarmRuleSummaryDto | null;
   @ApiProperty({ nullable: true }) forecastValue!: number | null;
