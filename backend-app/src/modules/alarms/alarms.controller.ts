@@ -37,12 +37,12 @@ export class AlarmsController {
 @ApiTags('alarms')
 @ApiBearerAuth('bearer')
 @UseGuards(AuthGuard, RbacGuard)
-@RequirePermissions('alarm:write')
 @Controller('alarms')
 export class AlarmsActionController {
   constructor(private readonly alarms: AlarmsService) {}
 
   @Post(':alarmId/acknowledge')
+  @RequirePermissions('alarm:acknowledge')
   @ApiOperation({ summary: 'Acknowledge an alarm.' })
   @ApiBody({ type: AcknowledgeAlarmDto })
   @ApiOkResponse({ type: OkResponseDto })
@@ -54,6 +54,7 @@ export class AlarmsActionController {
   }
 
   @Post(':alarmId/assign')
+  @RequirePermissions('alarm:assign')
   @ApiOperation({ summary: 'Assign an alarm to a user.' })
   @ApiBody({ type: AssignAlarmDto })
   @ApiOkResponse({ type: OkResponseDto })
@@ -65,6 +66,7 @@ export class AlarmsActionController {
   }
 
   @Post(':alarmId/resolve')
+  @RequirePermissions('alarm:resolve')
   @ApiOperation({ summary: 'Resolve an alarm with a resolution note.' })
   @ApiBody({ type: ResolveAlarmDto })
   @ApiOkResponse({ type: OkResponseDto })
