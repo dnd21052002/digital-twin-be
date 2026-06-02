@@ -156,11 +156,13 @@ describe('App e2e', () => {
       RETURNING asset_id::text AS asset_id
     `.execute(db.db);
     const rackAsset = await sql<{ asset_id: string }>`
-      INSERT INTO asset.asset (asset_id, asset_tag, display_name, category_code, rack_pos_id, hall_id, zone_id, rotation_deg, status, attributes, deleted_at)
-      VALUES ('33333333-3333-4333-8333-333333333333', 'E2E-RACK-001', 'E2E Rack One', 'IT_RACK', ${rackPosition.rows[0].rack_pos_id}, ${hall.rows[0].hall_id}, ${zone.rows[0].zone_id}, 0, 'online', '{"owner":"qa"}'::jsonb, NULL)
+      INSERT INTO asset.asset (asset_id, asset_tag, display_name, category_code, model_id, serial_no, rack_pos_id, hall_id, zone_id, rotation_deg, status, attributes, deleted_at)
+      VALUES ('33333333-3333-4333-8333-333333333333', 'E2E-RACK-001', 'E2E Rack One', 'e2e-server', ${model.rows[0].model_id}, 'SN-RACK-001', ${rackPosition.rows[0].rack_pos_id}, ${hall.rows[0].hall_id}, ${zone.rows[0].zone_id}, 0, 'online', '{"kind":"rack"}'::jsonb, NULL)
       ON CONFLICT (asset_tag) DO UPDATE
       SET display_name = EXCLUDED.display_name,
           category_code = EXCLUDED.category_code,
+          model_id = EXCLUDED.model_id,
+          serial_no = EXCLUDED.serial_no,
           rack_pos_id = EXCLUDED.rack_pos_id,
           hall_id = EXCLUDED.hall_id,
           zone_id = EXCLUDED.zone_id,
@@ -169,17 +171,6 @@ describe('App e2e', () => {
           attributes = EXCLUDED.attributes,
           deleted_at = NULL
       RETURNING asset_id::text AS asset_id
-    `.execute(db.db);
-    await sql`
-      INSERT INTO asset.rack (asset_id, total_u, used_u, power_capacity_kw, cooling_demand_kw, phase, network_uplink_gbps)
-      VALUES (${rackAsset.rows[0].asset_id}, 42, 0, 12.5, 1.5, '1P', 10)
-      ON CONFLICT (asset_id) DO UPDATE
-      SET total_u = EXCLUDED.total_u,
-          used_u = EXCLUDED.used_u,
-          power_capacity_kw = EXCLUDED.power_capacity_kw,
-          cooling_demand_kw = EXCLUDED.cooling_demand_kw,
-          phase = EXCLUDED.phase,
-          network_uplink_gbps = EXCLUDED.network_uplink_gbps
     `.execute(db.db);
     assetFixture = {
       assetId: asset.rows[0].asset_id,
@@ -403,6 +394,36 @@ describe('App e2e', () => {
       .expect(({ body }) => {
         expect(body.error.message).toBe('Asset not found');
       });
+  });
+
+  it('GET /api/v1/racks/:rackId returns rack detail shell', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/racks/${assetFixture.rackAssetId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          id: assetFixture.rackAssetId,
+          assetTag: 'E2E-RACK-001',
+          name: 'E2E Rack One',
+          status: 'online',
+          location: { rackPosition: { id: assetFixture.rackPositionId, name: 'E2E-RP1' } },
+          capacity: { maxU: 42, maxPowerKw: 12.5 },
+          units: [],
+          containedAssets: [],
+          activeAlarmSummary: null,
+        });
+      });
+  });
+
+  it('GET /api/v1/racks/:rackId returns 404 for missing rack', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/racks/44444444-4444-4444-8444-444444444444')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Rack not found'); });
   });
 
   it('GET /api/v1/scenes returns scene list shape', async () => {
