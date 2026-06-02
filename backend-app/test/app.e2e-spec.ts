@@ -638,4 +638,206 @@ describe('App e2e', () => {
         expect(body.error.message).toBe('Scene not found');
       });
   });
+
+  // ── Telemetry E2E smoke tests ──
+
+  it('GET /api/v1/assets/:assetId/metrics/latest returns latest metrics shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/latest`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.assetId).toBe(assetFixture.assetId);
+        expect(Array.isArray(body.items)).toBe(true);
+        if (body.items.length > 0) {
+          expect(body.items[0]).toMatchObject({
+            metricKey: expect.any(String),
+            name: expect.any(String),
+            unit: expect.any(String),
+            value: expect.any(Number),
+            quality: expect.any(Number),
+            timestamp: expect.any(String),
+          });
+        }
+      });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/latest returns 404 for missing asset', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/00000000-0000-4000-8000-000000000000/metrics/latest')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Asset not found'); });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/timeseries returns timeseries shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/timeseries?metric=temp_c&from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.assetId).toBe(assetFixture.assetId);
+        expect(body.metricKey).toBe('temp_c');
+        expect(typeof body.from).toBe('string');
+        expect(typeof body.to).toBe('string');
+        expect(Array.isArray(body.points)).toBe(true);
+      });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/timeseries returns 400 for from > to', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/timeseries?metric=temp_c&from=2026-01-02T00:00:00Z&to=2026-01-01T00:00:00Z`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(400)
+      .expect(({ body }) => { expect(body.error.code).toBe('validation_failed'); });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/timeseries returns 404 for missing asset', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/00000000-0000-4000-8000-000000000000/metrics/timeseries?metric=temp_c&from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Asset not found'); });
+  });
+
+  // ── Alarm E2E smoke tests ──
+
+  it('GET /api/v1/alarms returns alarm list shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?limit=5')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        expect(body.items.length).toBeLessThanOrEqual(5);
+        expect('nextCursor' in body).toBe(true);
+        if (body.items.length > 0) {
+          expect(body.items[0]).toMatchObject({
+            id: expect.any(String),
+            raisedAt: expect.any(String),
+            severity: expect.any(String),
+            state: expect.any(String),
+            title: expect.any(String),
+          });
+        }
+      });
+  });
+
+  it('GET /api/v1/alarms?status=new filters alarms', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?status=new&limit=5')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        body.items.forEach((item: { state: string }) => { expect(item.state).toBe('new'); });
+      });
+  });
+
+  it('GET /api/v1/alarms/:alarmId returns 404 for missing alarm', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms/00000000-0000-4000-8000-000000000000')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Alarm not found'); });
+  });
+
+  // ── Permission tests: unauthenticated → 401 ──
+
+  it('rejects unauthenticated GET /api/v1/assets with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/assets').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/alarms with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/alarms').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/assets/:id/metrics/latest with 401', async () => {
+    await request(app.getHttpServer()).get(`/api/v1/assets/${assetFixture.assetId}/metrics/latest`).expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/scenes with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/scenes').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/facility/tree with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/facility/tree').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/viewpoints with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/viewpoints').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/racks/:id with 401', async () => {
+    await request(app.getHttpServer()).get(`/api/v1/racks/${assetFixture.rackAssetId}`).expect(401);
+  });
+
+  // ── Permission tests: token without RBAC role → 403 ──
+
+  it('rejects unauthorized token for asset:read endpoint', async () => {
+    const limitedToken = await createLimitedUser('asset:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/assets')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(200); // asset:read granted
+  });
+
+  it('rejects unauthorized token for alarm:read endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('asset:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?limit=1')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  // ── Helper: create a user with exactly one permission ──
+
+  async function createLimitedUser(permissionCode: string): Promise<string> {
+    const hash = await new PasswordService().hash('Test@123456');
+    const username = 'e2e-limited-' + require('crypto').randomUUID();
+    const limitedUser = await sql<{ user_id: string }>`
+      INSERT INTO iam."user" (username, email, display_name, password_hash, is_active)
+      VALUES (${username}, ${username}::text || '@example.com', 'E2E Limited', ${hash}::text, true)
+      RETURNING user_id
+    `.execute(db.db);
+    const uid = limitedUser.rows[0]?.user_id;
+    if (!uid) throw new Error('Failed to create limited user');
+    const perm = await sql<{ permission_id: string }>`
+      INSERT INTO iam.permission (code, resource, action, description)
+      VALUES (${permissionCode}, split_part(${permissionCode}, ':', 1), split_part(${permissionCode}, ':', 2), 'Limited test permission')
+      ON CONFLICT (code) DO UPDATE SET code = EXCLUDED.code
+      RETURNING permission_id
+    `.execute(db.db);
+    const roleCode = 'LIMITED_' + require('crypto').randomUUID();
+    const role = await sql<{ role_id: string }>`
+      INSERT INTO iam.role (role_code, name, is_system)
+      VALUES (${roleCode}, 'Limited Role', false)
+      ON CONFLICT (role_code) DO NOTHING
+      RETURNING role_id
+    `.execute(db.db);
+    const rid = role.rows[0]?.role_id;
+    if (!rid) throw new Error('Failed to create limited role');
+    await sql`
+      INSERT INTO iam.role_permission (role_id, permission_id)
+      VALUES (${rid}::uuid, ${perm.rows[0].permission_id}::uuid)
+      ON CONFLICT DO NOTHING
+    `.execute(db.db);
+    await sql`
+      INSERT INTO iam.user_role (user_id, role_id, granted_by)
+      VALUES (${uid}::uuid, ${rid}::uuid, ${uid}::uuid)
+      ON CONFLICT DO NOTHING
+    `.execute(db.db);
+    const loginRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ identifier: username, password: 'Test@123456' })
+      .expect(201);
+    return loginRes.body.accessToken;
+  }
 });
