@@ -30,6 +30,38 @@ export interface AlarmTimelineEvent {
   payload: unknown;
 }
 
+export interface NearestCamera {
+  cameraId: string;
+  name: string;
+  streamUrl: string;
+  coveragePct: number;
+  priority: number;
+}
+
+export interface NearestCamerasResponse {
+  items: NearestCamera[];
+}
+
+export interface SopDocument {
+  id: string;
+  code: string;
+  title: string;
+  summary: string | null;
+}
+
+export interface SopStep {
+  stepNumber: number;
+  instruction: string;
+  expectedOutcome: string | null;
+  requiresRole: string | null;
+  estimatedMinutes: number | null;
+}
+
+export interface SopResponse {
+  sop: SopDocument;
+  steps: SopStep[];
+}
+
 export interface AlarmDetail extends AlarmSummary {
   rule: { id: string; code: string; name: string } | null;
   forecastValue: number | null;

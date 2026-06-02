@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsDateString, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 const ALARM_STATES = ['new', 'acked', 'assigned', 'in_progress', 'resolved', 'closed', 'auto_cleared', 'suppressed'] as const;
 const ALARM_SEVERITIES = ['info', 'warning', 'error', 'critical'] as const;
@@ -49,4 +49,25 @@ export class AlarmIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   alarmId!: string;
+}
+
+// ── Action DTOs ──
+
+export class AcknowledgeAlarmDto {
+  @ApiPropertyOptional({ description: 'Optional acknowledge comment' })
+  @IsOptional()
+  @IsString()
+  comment?: string;
+}
+
+export class AssignAlarmDto {
+  @ApiProperty({ format: 'uuid', description: 'User ID to assign the alarm to' })
+  @IsUUID()
+  assigneeUserId!: string;
+}
+
+export class ResolveAlarmDto {
+  @ApiProperty({ description: 'Resolution note' })
+  @IsString()
+  resolution!: string;
 }
