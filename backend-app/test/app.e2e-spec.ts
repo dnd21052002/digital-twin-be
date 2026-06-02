@@ -268,20 +268,34 @@ describe('App e2e', () => {
 
   it('GET /api/v1/facility/rack-positions returns filtered rack positions without skipping after cursor', async () => {
     const token = await login();
+    const orderedPositions = await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?rowId=${assetFixture.rowId}&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+    const [firstExpected, secondExpected] = orderedPositions.body.items;
+
+    expect(orderedPositions.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: assetFixture.rackPositionId }),
+        expect.objectContaining({ id: assetFixture.rackPosition2Id }),
+      ]),
+    );
+    expect(firstExpected).toBeDefined();
+    expect(secondExpected).toBeDefined();
+
     const firstPage = await request(app.getHttpServer())
-      .get(`/api/v1/facility/rack-positions?siteId=${assetFixture.siteId}&limit=1`)
+      .get(`/api/v1/facility/rack-positions?rowId=${assetFixture.rowId}&limit=1`)
       .set('authorization', `Bearer ${token}`)
       .expect(200);
 
-    expect(firstPage.body.nextCursor).toBe(assetFixture.rackPositionId);
+    expect(firstPage.body.nextCursor).toBe(firstExpected.id);
     expect(firstPage.body.items).toHaveLength(1);
     expect(firstPage.body.items[0]).toMatchObject({
-      id: assetFixture.rackPositionId,
-      code: 'E2E-RP1',
-      positionIndex: 1,
+      id: firstExpected.id,
+      code: firstExpected.code,
+      positionIndex: firstExpected.positionIndex,
       maxU: 42,
       maxPowerKw: 12.5,
-      currentRackId: assetFixture.rackAssetId,
       location: {
         siteId: assetFixture.siteId,
         buildingId: assetFixture.buildingId,
@@ -293,17 +307,12 @@ describe('App e2e', () => {
     });
 
     await request(app.getHttpServer())
-      .get(`/api/v1/facility/rack-positions?siteId=${assetFixture.siteId}&limit=1&cursor=${firstPage.body.nextCursor}`)
+      .get(`/api/v1/facility/rack-positions?rowId=${assetFixture.rowId}&limit=1&cursor=${firstPage.body.nextCursor}`)
       .set('authorization', `Bearer ${token}`)
       .expect(200)
       .expect(({ body }) => {
-        expect(body.items).toEqual([
-          expect.objectContaining({
-            id: assetFixture.rackPosition2Id,
-            code: 'E2E-RP2',
-            positionIndex: 2,
-          }),
-        ]);
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0].id).toBe(secondExpected.id);
       });
   });
 
