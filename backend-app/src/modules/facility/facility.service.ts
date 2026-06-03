@@ -1,10 +1,37 @@
 import { Injectable } from '@nestjs/common';
+import { RackPositionsQueryDto } from './dto/rack-positions-query.dto';
 import { FacilityRepository } from './facility.repository';
-import { BuildingNode, FacilityTreeResponse, FloorNode, HallNode, RackPositionNode, RowNode, SiteNode, ZoneNode } from './facility.types';
+import { BuildingNode, FacilityTreeResponse, FloorNode, HallNode, RackPositionNode, RackPositionsResponse, RowNode, SiteNode, ZoneNode } from './facility.types';
 
 @Injectable()
 export class FacilityService {
   constructor(private readonly repository: FacilityRepository) {}
+
+  async getRackPositions(query: RackPositionsQueryDto): Promise<RackPositionsResponse> {
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const rows = await this.repository.listRackPositions({ ...query, limit });
+    const page = rows.slice(0, limit);
+
+    return {
+      items: page.map(row => ({
+        id: row.id,
+        code: row.code,
+        positionIndex: toNumber(row.position_index),
+        maxU: toNumberOrNull(row.max_u),
+        maxPowerKw: toNumberOrNull(row.max_power_kw),
+        currentRackId: row.current_rack_id,
+        location: {
+          siteId: row.site_id,
+          buildingId: row.building_id,
+          floorId: row.floor_id,
+          hallId: row.hall_id,
+          zoneId: row.zone_id,
+          rowId: row.row_id,
+        },
+      })),
+      nextCursor: rows.length > limit ? page[page.length - 1]?.id ?? null : null,
+    };
+  }
 
   async getTree(): Promise<FacilityTreeResponse> {
     const rows = await this.repository.getTreeRows();

@@ -3,6 +3,37 @@ import { sql } from 'kysely';
 import { DbService } from '../../db/db.service';
 import { AlarmsQueryDto } from './dto/alarms-query.dto';
 
+export interface AlarmBasicRow {
+  alarm_id: string;
+  state: string;
+  rule_id: string | null;
+  asset_id: string | null;
+  zone_id: string | null;
+}
+
+export interface NearestCameraRow {
+  camera_id: string;
+  display_name: string;
+  stream_url: string | null;
+  coverage_pct: number | string;
+  priority: number | string;
+}
+
+export interface SopDocumentRow {
+  sop_id: string;
+  code: string;
+  title: string;
+  summary: string | null;
+}
+
+export interface SopStepRow {
+  step_number: number | string;
+  instruction: string;
+  expected_outcome: string | null;
+  requires_role: string | null;
+  estimated_minutes: number | string | null;
+}
+
 export interface AlarmSummaryRow {
   alarm_id: string;
   raised_at: Date | string;
@@ -144,6 +175,95 @@ export class AlarmsRepository {
       FROM alarm.alarm_event_log
       WHERE alarm_id = ${alarmId}
       ORDER BY occurred_at ASC, event_id ASC
+    `.execute(this.db);
+    return result.rows;
+  }
+
+  async getAlarmBasic(alarmId: string): Promise<AlarmBasicRow | null> {
+    const result = await sql<AlarmBasicRow>`
+      SELECT al.alarm_id::text, al.state::text, al.rule_id::text, al.asset_id::text, a.zone_id::text
+      FROM alarm.alarm al
+      LEFT JOIN asset.asset a ON a.asset_id = al.asset_id
+      WHERE al.alarm_id = ${alarmId}
+      LIMIT 1
+    `.execute(this.db);
+    return result.rows[0] ?? null;
+  }
+
+  async acknowledgeAlarm(alarmId: string, actorId: string, comment: string | null): Promise<void> {
+    await sql`
+      UPDATE alarm.alarm SET state = 'acked', acked_by = ${actorId}::uuid, acked_at = now()
+      WHERE alarm_id = ${alarmId}::uuid
+    `.execute(this.db);
+    await sql`
+      INSERT INTO alarm.alarm_event_log (alarm_id, actor_id, event_type, payload)
+      VALUES (${alarmId}::uuid, ${actorId}::uuid, 'acknowledge', ${comment ? JSON.stringify({ comment }) : '{}'}::jsonb)
+    `.execute(this.db);
+    await sql`
+      INSERT INTO audit.audit_event (time, actor_id, action, resource_kind, resource_id, result)
+      VALUES (now(), ${actorId}::uuid, 'alarm.acknowledge', 'alarm', ${alarmId}, 'success')
+    `.execute(this.db);
+  }
+
+  async assignAlarm(alarmId: string, actorId: string, assigneeUserId: string): Promise<void> {
+    await sql`
+      UPDATE alarm.alarm SET assigned_to = ${assigneeUserId}::uuid, assigned_at = now()
+      WHERE alarm_id = ${alarmId}::uuid
+    `.execute(this.db);
+    await sql`
+      INSERT INTO alarm.alarm_event_log (alarm_id, actor_id, event_type, payload)
+      VALUES (${alarmId}::uuid, ${actorId}::uuid, 'assign', ${JSON.stringify({ assigneeUserId })}::jsonb)
+    `.execute(this.db);
+  }
+
+  async resolveAlarm(alarmId: string, actorId: string, resolution: string): Promise<void> {
+    await sql`
+      UPDATE alarm.alarm SET state = 'resolved', resolved_at = now(), resolution_note = ${resolution}
+      WHERE alarm_id = ${alarmId}::uuid
+    `.execute(this.db);
+    await sql`
+      INSERT INTO alarm.alarm_event_log (alarm_id, actor_id, event_type, payload)
+      VALUES (${alarmId}::uuid, ${actorId}::uuid, 'resolve', ${JSON.stringify({ resolution })}::jsonb)
+    `.execute(this.db);
+    await sql`
+      INSERT INTO audit.audit_event (time, actor_id, action, resource_kind, resource_id, result)
+      VALUES (now(), ${actorId}::uuid, 'alarm.resolve', 'alarm', ${alarmId}, 'success')
+    `.execute(this.db);
+  }
+
+  async getNearestCameras(zoneId: string | number): Promise<NearestCameraRow[]> {
+    const result = await sql<NearestCameraRow>`
+      SELECT
+        czc.camera_id::text,
+        a.display_name,
+        ac.stream_url,
+        czc.coverage_pct,
+        czc.priority
+      FROM cctv.camera_zone_coverage czc
+      JOIN asset.asset a ON a.asset_id = czc.camera_id
+      LEFT JOIN asset.camera ac ON ac.asset_id = czc.camera_id
+      WHERE czc.zone_id = ${zoneId}
+      ORDER BY czc.priority ASC, czc.coverage_pct DESC
+    `.execute(this.db);
+    return result.rows;
+  }
+
+  async getSopDocument(sopId: string): Promise<SopDocumentRow | null> {
+    const result = await sql<SopDocumentRow>`
+      SELECT sop_id::text, code, title, summary
+      FROM sop.sop_document
+      WHERE sop_id = ${sopId}::uuid
+      LIMIT 1
+    `.execute(this.db);
+    return result.rows[0] ?? null;
+  }
+
+  async getSopSteps(sopId: string): Promise<SopStepRow[]> {
+    const result = await sql<SopStepRow>`
+      SELECT step_number, instruction, expected_outcome, requires_role, estimated_minutes
+      FROM sop.sop_step
+      WHERE sop_id = ${sopId}::uuid
+      ORDER BY step_number ASC
     `.execute(this.db);
     return result.rows;
   }

@@ -18,7 +18,7 @@ describe('App e2e', () => {
   let app: INestApplication;
   let db: DbService;
   let password: string;
-  let assetFixture: { assetId: string; siteId: string; buildingId: string; floorId: string; hallId: string; zoneId: string; rowId: string; rackPositionId: string };
+  let assetFixture: { assetId: string; rackAssetId: string; siteId: string; buildingId: string; floorId: string; hallId: string; zoneId: string; rowId: string; rackPositionId: string; rackPosition2Id: string };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -123,7 +123,13 @@ describe('App e2e', () => {
     const rackPosition = await sql<{ rack_pos_id: string }>`
       INSERT INTO facility.rack_position (row_id, position_index, code, geom, max_u, max_power_kw)
       VALUES (${row.rows[0].row_id}, 1, 'E2E-RP1', ST_SetSRID(ST_MakePoint(1, 1, 0), 4326), 42, 12.5)
-      ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom
+      ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom, current_rack_id = NULL
+      RETURNING rack_pos_id::text AS rack_pos_id
+    `.execute(db.db);
+    const rackPosition2 = await sql<{ rack_pos_id: string }>`
+      INSERT INTO facility.rack_position (row_id, position_index, code, geom, max_u, max_power_kw)
+      VALUES (${row.rows[0].row_id}, 2, 'E2E-RP2', ST_SetSRID(ST_MakePoint(2, 1, 0), 4326), 42, 12.5)
+      ON CONFLICT (row_id, position_index) DO UPDATE SET code = EXCLUDED.code, geom = EXCLUDED.geom, current_rack_id = NULL
       RETURNING rack_pos_id::text AS rack_pos_id
     `.execute(db.db);
     await sql`
@@ -155,8 +161,32 @@ describe('App e2e', () => {
           deleted_at = NULL
       RETURNING asset_id::text AS asset_id
     `.execute(db.db);
+    const rackAsset = await sql<{ asset_id: string }>`
+      INSERT INTO asset.asset (asset_id, asset_tag, display_name, category_code, model_id, serial_no, rack_pos_id, hall_id, zone_id, rotation_deg, status, attributes, deleted_at)
+      VALUES ('33333333-3333-4333-8333-333333333333', 'E2E-RACK-001', 'E2E Rack One', 'e2e-server', ${model.rows[0].model_id}, 'SN-RACK-001', ${rackPosition.rows[0].rack_pos_id}, ${hall.rows[0].hall_id}, ${zone.rows[0].zone_id}, 0, 'online', '{"kind":"rack"}'::jsonb, NULL)
+      ON CONFLICT (asset_tag) DO UPDATE
+      SET display_name = EXCLUDED.display_name,
+          category_code = EXCLUDED.category_code,
+          model_id = EXCLUDED.model_id,
+          serial_no = EXCLUDED.serial_no,
+          rack_pos_id = EXCLUDED.rack_pos_id,
+          hall_id = EXCLUDED.hall_id,
+          zone_id = EXCLUDED.zone_id,
+          rotation_deg = EXCLUDED.rotation_deg,
+          status = EXCLUDED.status,
+          attributes = EXCLUDED.attributes,
+          deleted_at = NULL
+      RETURNING asset_id::text AS asset_id
+    `.execute(db.db);
+    await sql`
+      UPDATE facility.rack_position
+      SET current_rack_id = ${rackAsset.rows[0].asset_id}
+      WHERE rack_pos_id = ${rackPosition.rows[0].rack_pos_id}
+    `.execute(db.db);
+
     assetFixture = {
       assetId: asset.rows[0].asset_id,
+      rackAssetId: rackAsset.rows[0].asset_id,
       siteId: site.rows[0].site_id,
       buildingId: building.rows[0].building_id,
       floorId: floor.rows[0].floor_id,
@@ -164,6 +194,7 @@ describe('App e2e', () => {
       zoneId: zone.rows[0].zone_id,
       rowId: row.rows[0].row_id,
       rackPositionId: rackPosition.rows[0].rack_pos_id,
+      rackPosition2Id: rackPosition2.rows[0].rack_pos_id,
     };
   });
 
@@ -232,6 +263,92 @@ describe('App e2e', () => {
       .expect(200)
       .expect(({ body }) => {
         expect(Array.isArray(body.sites)).toBe(true);
+      });
+  });
+
+  it('GET /api/v1/facility/rack-positions returns filtered rack positions without skipping after cursor', async () => {
+    const token = await login();
+    const orderedPositions = await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?rowId=${assetFixture.rowId}&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+    const [firstExpected, secondExpected] = orderedPositions.body.items;
+
+    expect(orderedPositions.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: assetFixture.rackPositionId }),
+        expect.objectContaining({ id: assetFixture.rackPosition2Id }),
+      ]),
+    );
+    expect(firstExpected).toBeDefined();
+    expect(secondExpected).toBeDefined();
+
+    const firstPage = await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?rowId=${assetFixture.rowId}&limit=1`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(firstPage.body.nextCursor).toBe(firstExpected.id);
+    expect(firstPage.body.items).toHaveLength(1);
+    expect(firstPage.body.items[0]).toMatchObject({
+      id: firstExpected.id,
+      code: firstExpected.code,
+      positionIndex: firstExpected.positionIndex,
+      maxU: 42,
+      maxPowerKw: 12.5,
+      location: {
+        siteId: assetFixture.siteId,
+        buildingId: assetFixture.buildingId,
+        floorId: assetFixture.floorId,
+        hallId: assetFixture.hallId,
+        zoneId: assetFixture.zoneId,
+        rowId: assetFixture.rowId,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?rowId=${assetFixture.rowId}&limit=1&cursor=${firstPage.body.nextCursor}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0].id).toBe(secondExpected.id);
+      });
+  });
+
+  it('GET /api/v1/facility/rack-positions rejects negative limit', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/facility/rack-positions?limit=-1')
+      .set('authorization', `Bearer ${token}`)
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.error.code).toBe('validation_failed');
+      });
+  });
+
+  it('GET /api/v1/facility/rack-positions filters by current rack zone', async () => {
+    const token = await login();
+    await sql`
+      UPDATE facility.rack_position
+      SET current_rack_id = ${assetFixture.rackAssetId}
+      WHERE rack_pos_id = ${assetFixture.rackPositionId}
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/facility/rack-positions?zoneId=${assetFixture.zoneId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: assetFixture.rackPositionId,
+              currentRackId: assetFixture.rackAssetId,
+              location: expect.objectContaining({ zoneId: assetFixture.zoneId }),
+            }),
+          ]),
+        );
       });
   });
 
@@ -314,10 +431,151 @@ describe('App e2e', () => {
       });
   });
 
+  it('GET /api/v1/racks/:rackId returns rack detail shell', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/racks/${assetFixture.rackAssetId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          id: assetFixture.rackAssetId,
+          assetTag: 'E2E-RACK-001',
+          name: 'E2E Rack One',
+          status: 'online',
+          location: { rackPosition: { id: assetFixture.rackPositionId, name: 'E2E-RP1' } },
+          capacity: { maxU: 42, maxPowerKw: 12.5 },
+          units: [],
+          containedAssets: [],
+          activeAlarmSummary: null,
+        });
+      });
+  });
+
+  it('GET /api/v1/racks/:rackId returns 404 for ordinary non-rack asset', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/racks/${assetFixture.assetId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Rack not found'); });
+  });
+
+  it('GET /api/v1/racks/:rackId returns 404 for missing rack', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/racks/44444444-4444-4444-8444-444444444444')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Rack not found'); });
+  });
+
   it('GET /api/v1/scenes returns scene list shape', async () => {
     const token = await login();
     await request(app.getHttpServer())
       .get('/api/v1/scenes')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+      });
+  });
+
+  it('GET /api/v1/scenes/:sceneId/assets returns scene asset list shape', async () => {
+    const token = await login();
+    const scene = await sql<{ scene_id: string }>`
+      INSERT INTO geom3d.scene (scene_id, site_id, name, environment, lod_strategy, is_default)
+      VALUES ('55555555-5555-4555-8555-555555555555', ${assetFixture.siteId}, 'E2E Scene', '{}'::jsonb, 'hybrid', true)
+      ON CONFLICT (scene_id) DO UPDATE SET site_id = EXCLUDED.site_id, name = EXCLUDED.name
+      RETURNING scene_id::text AS scene_id
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        expect(body.nextCursor).toBeNull();
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(true);
+      });
+  });
+
+  it('GET /api/v1/scenes/:sceneId/assets applies 3D bbox filtering', async () => {
+    const token = await login();
+    const scene = await sql<{ scene_id: string }>`
+      INSERT INTO geom3d.scene (scene_id, site_id, name, environment, lod_strategy, is_default)
+      VALUES ('55555555-5555-4555-8555-555555555555', ${assetFixture.siteId}, 'E2E Scene', '{}'::jsonb, 'hybrid', true)
+      ON CONFLICT (scene_id) DO UPDATE SET site_id = EXCLUDED.site_id, name = EXCLUDED.name
+      RETURNING scene_id::text AS scene_id
+    `.execute(db.db);
+    await sql`
+      UPDATE asset.asset
+      SET geom = ST_SetSRID(ST_MakePoint(2, 3, 4), 4326), attributes = '{"owner":"qa"}'::jsonb
+      WHERE asset_id = ${assetFixture.assetId}
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?bbox=1,2,3,3,4,5&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?bbox=1,2,5,3,4,6&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(false);
+      });
+  });
+
+  it('GET /api/v1/scenes/:sceneId/assets applies lod filtering from asset attributes', async () => {
+    const token = await login();
+    const scene = await sql<{ scene_id: string }>`
+      INSERT INTO geom3d.scene (scene_id, site_id, name, environment, lod_strategy, is_default)
+      VALUES ('55555555-5555-4555-8555-555555555555', ${assetFixture.siteId}, 'E2E Scene', '{}'::jsonb, 'hybrid', true)
+      ON CONFLICT (scene_id) DO UPDATE SET site_id = EXCLUDED.site_id, name = EXCLUDED.name
+      RETURNING scene_id::text AS scene_id
+    `.execute(db.db);
+    await sql`
+      UPDATE asset.asset
+      SET attributes = '{"owner":"qa","lodLevel":2}'::jsonb
+      WHERE asset_id = ${assetFixture.assetId}
+    `.execute(db.db);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?lod=2&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/scenes/${scene.rows[0].scene_id}/assets?lod=1&limit=10`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items.some((item: { id: string }) => item.id === assetFixture.assetId)).toBe(false);
+      });
+  });
+
+  it('GET /api/v1/scenes/:sceneId/assets returns 404 for missing scene', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/scenes/66666666-6666-4666-8666-666666666666/assets')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Scene not found'); });
+  });
+
+  it('GET /api/v1/viewpoints returns list shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/viewpoints')
       .set('authorization', `Bearer ${token}`)
       .expect(200)
       .expect(({ body }) => {
@@ -342,6 +600,34 @@ describe('App e2e', () => {
     );
   });
 
+  it('documents sprint 2 viewer navigation parameters', () => {
+    const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
+
+    expect(document.paths['/api/v1/facility/rack-positions']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'siteId', in: 'query' }),
+        expect.objectContaining({ name: 'limit', in: 'query' }),
+      ]),
+    );
+    expect(document.paths['/api/v1/racks/{rackId}']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'rackId', in: 'path', required: true }),
+      ]),
+    );
+    expect(document.paths['/api/v1/scenes/{sceneId}/assets']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'sceneId', in: 'path', required: true }),
+        expect.objectContaining({ name: 'bbox', in: 'query' }),
+      ]),
+    );
+    expect(document.paths['/api/v1/viewpoints']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'sceneId', in: 'query' }),
+        expect.objectContaining({ name: 'type', in: 'query' }),
+      ]),
+    );
+  });
+
   it('GET /api/v1/scenes/:sceneId/manifest returns 404 for missing scene', async () => {
     const token = await login();
     await request(app.getHttpServer())
@@ -352,4 +638,296 @@ describe('App e2e', () => {
         expect(body.error.message).toBe('Scene not found');
       });
   });
+
+  // ── Telemetry E2E smoke tests ──
+
+  it('GET /api/v1/assets/:assetId/metrics/latest returns latest metrics shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/latest`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.assetId).toBe(assetFixture.assetId);
+        expect(Array.isArray(body.items)).toBe(true);
+        if (body.items.length > 0) {
+          expect(body.items[0]).toMatchObject({
+            metricKey: expect.any(String),
+            name: expect.any(String),
+            unit: expect.any(String),
+            value: expect.any(Number),
+            quality: expect.any(Number),
+            timestamp: expect.any(String),
+          });
+        }
+      });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/latest returns 404 for missing asset', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/00000000-0000-4000-8000-000000000000/metrics/latest')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Asset not found'); });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/timeseries returns timeseries shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/timeseries?metric=temp_c&from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.assetId).toBe(assetFixture.assetId);
+        expect(body.metricKey).toBe('temp_c');
+        expect(typeof body.from).toBe('string');
+        expect(typeof body.to).toBe('string');
+        expect(Array.isArray(body.points)).toBe(true);
+      });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/timeseries returns 400 for from > to', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/timeseries?metric=temp_c&from=2026-01-02T00:00:00Z&to=2026-01-01T00:00:00Z`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(400)
+      .expect(({ body }) => { expect(body.error.code).toBe('validation_failed'); });
+  });
+
+  it('GET /api/v1/assets/:assetId/metrics/timeseries returns 404 for missing asset', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/00000000-0000-4000-8000-000000000000/metrics/timeseries?metric=temp_c&from=2026-01-01T00:00:00Z&to=2026-01-01T01:00:00Z')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Asset not found'); });
+  });
+
+  // ── Alarm E2E smoke tests ──
+
+  it('GET /api/v1/alarms returns alarm list shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?limit=5')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        expect(body.items.length).toBeLessThanOrEqual(5);
+        expect('nextCursor' in body).toBe(true);
+        if (body.items.length > 0) {
+          expect(body.items[0]).toMatchObject({
+            id: expect.any(String),
+            raisedAt: expect.any(String),
+            severity: expect.any(String),
+            state: expect.any(String),
+            title: expect.any(String),
+          });
+        }
+      });
+  });
+
+  it('GET /api/v1/alarms?status=new filters alarms', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?status=new&limit=5')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        body.items.forEach((item: { state: string }) => { expect(item.state).toBe('new'); });
+      });
+  });
+
+  it('GET /api/v1/alarms/:alarmId returns 404 for missing alarm', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms/00000000-0000-4000-8000-000000000000')
+      .set('authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect(({ body }) => { expect(body.error.message).toBe('Alarm not found'); });
+  });
+
+  // ── KPI & Capacity E2E smoke tests ──
+
+  it('GET /api/v1/kpis/latest returns KPI shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/kpis/latest')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        if (body.items.length > 0) {
+          expect(body.items[0]).toMatchObject({
+            kpiId: expect.any(String),
+            code: expect.any(String),
+            name: expect.any(String),
+            value: expect.any(Number),
+            unit: expect.any(String),
+          });
+        }
+      });
+  });
+
+  it('GET /api/v1/capacity/summary returns capacity shape', async () => {
+    const token = await login();
+    await request(app.getHttpServer())
+      .get('/api/v1/capacity/summary')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(Array.isArray(body.items)).toBe(true);
+        if (body.items.length > 0) {
+          const item = body.items[0];
+          expect(item).toMatchObject({
+            zoneId: expect.any(String),
+            powerTotal: expect.any(Number),
+            powerUsed: expect.any(Number),
+            powerAvailable: expect.any(Number),
+            coolingTotal: expect.any(Number),
+            coolingUsed: expect.any(Number),
+            coolingAvailable: expect.any(Number),
+            spaceTotal: expect.any(Number),
+            spaceUsed: expect.any(Number),
+            spaceAvailable: expect.any(Number),
+          });
+        }
+      });
+  });
+
+  it('rejects unauthenticated GET /api/v1/assets with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/assets').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/alarms with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/alarms').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/assets/:id/metrics/latest with 401', async () => {
+    await request(app.getHttpServer()).get(`/api/v1/assets/${assetFixture.assetId}/metrics/latest`).expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/scenes with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/scenes').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/facility/tree with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/facility/tree').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/viewpoints with 401', async () => {
+    await request(app.getHttpServer()).get('/api/v1/viewpoints').expect(401);
+  });
+
+  it('rejects unauthenticated GET /api/v1/racks/:id with 401', async () => {
+    await request(app.getHttpServer()).get(`/api/v1/racks/${assetFixture.rackAssetId}`).expect(401);
+  });
+
+  // ── Permission tests: token without RBAC role → 403 ──
+
+  it('rejects unauthorized token for asset:read endpoint', async () => {
+    const limitedToken = await createLimitedUser('asset:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/assets')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(200); // asset:read granted
+  });
+
+  it('rejects unauthorized token for alarm:read endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('asset:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?limit=1')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('alarm:read user can access alarms but not assets (403)', async () => {
+    const alarmToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/alarms?limit=1')
+      .set('authorization', `Bearer ${alarmToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/assets?limit=1')
+      .set('authorization', `Bearer ${alarmToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for telemetry endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get(`/api/v1/assets/${assetFixture.assetId}/metrics/latest`)
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for layers endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/layers/types')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for kpis endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/kpis/latest')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  it('rejects unauthorized token for capacity endpoint (403)', async () => {
+    const limitedToken = await createLimitedUser('alarm:read');
+    await request(app.getHttpServer())
+      .get('/api/v1/capacity/summary')
+      .set('authorization', `Bearer ${limitedToken}`)
+      .expect(403);
+  });
+
+  // ── Helper: create a user with exactly one permission ──
+
+  async function createLimitedUser(permissionCode: string): Promise<string> {
+    const hash = await new PasswordService().hash('Test@123456');
+    const username = 'e2e-limited-' + require('crypto').randomUUID();
+    const limitedUser = await sql<{ user_id: string }>`
+      INSERT INTO iam."user" (username, email, display_name, password_hash, is_active)
+      VALUES (${username}, ${username}::text || '@example.com', 'E2E Limited', ${hash}::text, true)
+      RETURNING user_id
+    `.execute(db.db);
+    const uid = limitedUser.rows[0]?.user_id;
+    if (!uid) throw new Error('Failed to create limited user');
+    const perm = await sql<{ permission_id: string }>`
+      INSERT INTO iam.permission (code, resource, action, description)
+      VALUES (${permissionCode}, split_part(${permissionCode}, ':', 1), split_part(${permissionCode}, ':', 2), 'Limited test permission')
+      ON CONFLICT (code) DO UPDATE SET code = EXCLUDED.code
+      RETURNING permission_id
+    `.execute(db.db);
+    const roleCode = 'LIMITED_' + require('crypto').randomUUID();
+    const role = await sql<{ role_id: string }>`
+      INSERT INTO iam.role (role_code, name, is_system)
+      VALUES (${roleCode}, 'Limited Role', false)
+      ON CONFLICT (role_code) DO NOTHING
+      RETURNING role_id
+    `.execute(db.db);
+    const rid = role.rows[0]?.role_id;
+    if (!rid) throw new Error('Failed to create limited role');
+    await sql`
+      INSERT INTO iam.role_permission (role_id, permission_id)
+      VALUES (${rid}::uuid, ${perm.rows[0].permission_id}::uuid)
+      ON CONFLICT DO NOTHING
+    `.execute(db.db);
+    await sql`
+      INSERT INTO iam.user_role (user_id, role_id, granted_by)
+      VALUES (${uid}::uuid, ${rid}::uuid, ${uid}::uuid)
+      ON CONFLICT DO NOTHING
+    `.execute(db.db);
+    const loginRes = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ identifier: username, password: 'Test@123456' })
+      .expect(201);
+    return loginRes.body.accessToken;
+  }
 });
